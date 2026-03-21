@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: qony-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: qony
+      POSTGRES_USER: qony
+      POSTGRES_PASSWORD: qony
+    volumes:
+      - qony_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  qony_postgres_data:
