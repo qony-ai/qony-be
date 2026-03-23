@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Float, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import CheckConstraint, Float, ForeignKey, Index, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -12,11 +12,14 @@ from app.models.mixins import TimestampMixin, UUIDPrimaryKeyMixin
 
 class Node(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "nodes"
+    __table_args__ = (
+        CheckConstraint("rank BETWEEN 1 AND 6", name="ck_nodes_rank_valid"),
+        Index("ix_nodes_workspace_id_rank", "workspace_id", "rank"),
+    )
 
     workspace_id: Mapped[UUID] = mapped_column(
         ForeignKey("workspaces.id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
     )
     rank: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)

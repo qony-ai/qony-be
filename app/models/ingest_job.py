@@ -15,7 +15,11 @@ class IngestJob(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     project_id: Mapped[UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
     workspace_id: Mapped[UUID] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
-    requested_by_user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    requested_by_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
     raw_text: Mapped[str] = mapped_column(Text, nullable=False)
     source_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     source_content_type: Mapped[str | None] = mapped_column(String(255), nullable=True)

@@ -17,7 +17,7 @@ def build_ai_adapter(settings: Settings) -> AIAdapter:
         return RemoteAIAdapter(
             base_url=settings.remote_ai_base_url,
             model=settings.remote_ai_model,
-            api_key=settings.remote_ai_api_key or "",
+            api_key=settings.remote_ai_api_key_value,
             timeout=settings.ai_request_timeout_seconds,
         )
     return StubAIAdapter()

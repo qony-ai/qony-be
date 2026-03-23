@@ -55,14 +55,16 @@ class JsonFormatter(logging.Formatter):
 
 
 def configure_logging(_settings: Any | None = None) -> None:
+    level_name = getattr(_settings, "app_log_level", "INFO")
+    level = getattr(logging, str(level_name).upper(), logging.INFO)
     root_logger = logging.getLogger()
     if root_logger.handlers:
         for handler in root_logger.handlers:
             handler.setFormatter(JsonFormatter())
-        root_logger.setLevel(logging.INFO)
+        root_logger.setLevel(level)
         return
 
     handler = logging.StreamHandler()
     handler.setFormatter(JsonFormatter())
-    root_logger.setLevel(logging.INFO)
+    root_logger.setLevel(level)
     root_logger.addHandler(handler)

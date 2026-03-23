@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -7,6 +8,7 @@ from fastapi import APIRouter, Depends, Request
 
 from app.api.deps import get_db_session, get_settings
 from app.core.config import Settings
+from app.core.exceptions import ServiceUnavailableError
 
 router = APIRouter(tags=["health"])
 
@@ -27,7 +29,10 @@ def ready(
     session: Session = Depends(get_db_session),
     settings: Settings = Depends(get_settings),
 ) -> dict:
-    session.execute(text("SELECT 1"))
+    try:
+        session.execute(text("SELECT 1"))
+    except SQLAlchemyError as exc:
+        raise ServiceUnavailableError("Database readiness check failed.") from exc
     return {
         "status": "ready",
         "database": "ok",

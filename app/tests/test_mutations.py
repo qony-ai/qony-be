@@ -82,6 +82,56 @@ def test_mutation_engine_applies_add_node_and_edge():
     assert ai_commands_applied == 0
 
 
+def test_mutation_engine_allows_one_parent_to_have_multiple_children():
+    graph = _base_graph()
+    root = graph.nodes[0]
+    first_child_id = uuid4()
+    second_child_id = uuid4()
+
+    mutated, _, _ = apply_mutation_commands(
+        graph,
+        [
+            AddNodeCommand(
+                type="add_node",
+                node=NodeDraft(
+                    id=first_child_id,
+                    rank=2,
+                    title="Sub-problem A",
+                    content="Investigate demand loss",
+                    source="manual",
+                    position=Position(x=200, y=0),
+                    metadata={"branch_index": 0},
+                ),
+            ),
+            AddNodeCommand(
+                type="add_node",
+                node=NodeDraft(
+                    id=second_child_id,
+                    rank=2,
+                    title="Sub-problem B",
+                    content="Investigate procurement bottlenecks",
+                    source="manual",
+                    position=Position(x=200, y=220),
+                    metadata={"branch_index": 1},
+                ),
+            ),
+            AddEdgeCommand(
+                type="add_edge",
+                edge=EdgeDraft(source=root.id, target=first_child_id, label=None, metadata={}),
+            ),
+            AddEdgeCommand(
+                type="add_edge",
+                edge=EdgeDraft(source=root.id, target=second_child_id, label=None, metadata={}),
+            ),
+        ],
+    )
+
+    summary = ensure_valid_graph(mutated)
+
+    assert summary.is_valid is True
+    assert len([edge for edge in mutated.edges if edge.source == root.id]) == 2
+
+
 def test_mutation_engine_rejects_invalid_ai_patch_size():
     graph = _base_graph()
 

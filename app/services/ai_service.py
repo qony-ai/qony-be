@@ -45,6 +45,64 @@ PATCH_COMMAND_ADAPTER = TypeAdapter(list[PatchCommand])
 SECTION_HEADING_PATTERN = re.compile(r"^(?P<number>\d{1,2})[\.\)]\s+(?P<title>.+)$")
 BULLET_PATTERN = re.compile(r"^(?:[\-\*\u2022]|\d+[\.\)])\s+(?P<content>.+)$")
 
+STRATEGY_FRAMEWORKS: list[dict[str, Any]] = [
+    {
+        "id": "swot",
+        "title": "SWOT Analysis",
+        "aliases": ["swot", "wot"],
+        "prompt_labels": ["Strengths", "Weaknesses", "Opportunities", "Threats"],
+    },
+    {
+        "id": "3cs",
+        "title": "3Cs Framework",
+        "aliases": ["3c", "3cs", "company competitor customer"],
+        "prompt_labels": ["Company", "Competitor", "Customer"],
+    },
+    {
+        "id": "porter",
+        "title": "Porter's Five Forces",
+        "aliases": ["porter", "porter's five forces", "porters five forces", "five forces"],
+        "prompt_labels": [
+            "Threat of new entrants",
+            "Supplier power",
+            "Buyer power",
+            "Threat of substitutes",
+            "Competitive rivalry",
+        ],
+    },
+    {
+        "id": "pestel",
+        "title": "PESTEL Analysis",
+        "aliases": ["pestel", "pestle"],
+        "prompt_labels": [
+            "Political",
+            "Economic",
+            "Social",
+            "Technological",
+            "Environmental",
+            "Legal",
+        ],
+    },
+    {
+        "id": "most",
+        "title": "MOST",
+        "aliases": ["most", "mission objectives strategies tactics"],
+        "prompt_labels": ["Mission", "Objectives", "Strategies", "Tactics"],
+    },
+    {
+        "id": "7s",
+        "title": "7S McKinsey",
+        "aliases": ["7s", "7s mckinsey", "mckinsey 7s"],
+        "prompt_labels": ["Strategy", "Structure", "Systems", "Shared values", "Style", "Staff", "Skills"],
+    },
+    {
+        "id": "value-chain",
+        "title": "Value Chain Analysis",
+        "aliases": ["value chain", "value-chain", "value chain analysis"],
+        "prompt_labels": ["Primary activities", "Support activities", "Value leaks", "Improvement focus"],
+    },
+]
+
 
 class AIService:
     def __init__(self, *, session: Session, settings: Settings, actor: Actor) -> None:
@@ -172,15 +230,97 @@ class AIService:
         user_id: UUID,
         graph: WorkspaceGraph,
         instruction: str,
+        focus_node_id: UUID | None = None,
     ) -> WorkspaceGraphRewriteSuggestion:
         request_payload = {
             "request": instruction,
             "graph": graph.model_dump(mode="json"),
+            "focus_node_id": str(focus_node_id) if focus_node_id is not None else None,
         }
+        framework = self._detect_framework_request(instruction)
+        if framework is not None:
+            if self._looks_like_framework_graph_request(instruction):
+                rewritten_graph = self._apply_framework_to_graph(
+                    graph=graph,
+                    framework=framework,
+                    focus_node_id=focus_node_id,
+                )
+                summary = self._build_framework_response(
+                    framework=framework,
+                    graph=rewritten_graph,
+                    instruction=instruction,
+                    focus_node_id=focus_node_id,
+                    graph_changed=True,
+                )
+                response_payload: dict[str, Any] = {
+                    "action": "rewrite_graph",
+                    "summary": summary,
+                    "graph": rewritten_graph.model_dump(mode="json"),
+                }
+                provider_result = self._create_ai_result(
+                    operation=AIRequestOperation.WORKSPACE_MUTATION,
+                    project_id=project_id,
+                    workspace_id=workspace_id,
+                    user_id=user_id,
+                    provider="heuristic",
+                    model="framework-router",
+                    payload=response_payload,
+                    fallback_used=False,
+                    request_text=json.dumps(request_payload),
+                    response_text=json.dumps(response_payload),
+                    status=AIRequestStatus.COMPLETED,
+                    error_message=None,
+                    latency_ms=0,
+                )
+                return WorkspaceGraphRewriteSuggestion(
+                    action="rewrite_graph",
+                    graph=rewritten_graph,
+                    provider_result=provider_result,
+                    summary=summary,
+                    request_payload=request_payload,
+                    response_payload=response_payload,
+                )
+
+            summary = self._build_framework_response(
+                framework=framework,
+                graph=graph,
+                instruction=instruction,
+                focus_node_id=focus_node_id,
+                graph_changed=False,
+            )
+            response_payload = {
+                "action": "explain",
+                "summary": summary,
+            }
+            provider_result = self._create_ai_result(
+                operation=AIRequestOperation.WORKSPACE_MUTATION,
+                project_id=project_id,
+                workspace_id=workspace_id,
+                user_id=user_id,
+                provider="heuristic",
+                model="framework-router",
+                payload=response_payload,
+                fallback_used=False,
+                request_text=json.dumps(request_payload),
+                response_text=json.dumps(response_payload),
+                status=AIRequestStatus.COMPLETED,
+                error_message=None,
+                latency_ms=0,
+            )
+            return WorkspaceGraphRewriteSuggestion(
+                action="explain",
+                graph=None,
+                provider_result=provider_result,
+                summary=summary,
+                request_payload=request_payload,
+                response_payload=response_payload,
+            )
+
         if self.settings.ai_provider == AIProviderKind.STUB:
             action, rewritten_graph = self._build_stub_workspace_chat_response(
                 graph=graph,
                 instruction=instruction,
+                focus_node_id=focus_node_id,
             )
             summary = self._coerce_workspace_chat_summary(
                 None,
@@ -188,6 +328,7 @@ class AIService:
                 instruction=instruction,
                 current_graph=graph,
                 rewritten_graph=rewritten_graph,
+                focus_node_id=focus_node_id,
             )
             response_payload: dict[str, Any] = {
                 "action": action,
@@ -224,6 +365,7 @@ class AIService:
             "Return JSON only with top-level keys action, summary, and graph. "
             "action must be either 'explain' or 'rewrite_graph'. "
             "Use 'explain' when the user only asks for clarification, reasoning, or interpretation and does not request a graph mutation. "
+            "If the user asks for SWOT, 3Cs, Porter's Five Forces, PESTEL, MOST, 7S McKinsey, or Value Chain without explicitly asking to edit the graph, use 'explain' and answer in that framework. "
             "Use 'rewrite_graph' when the user asks to add, update, delete, move, restructure, or otherwise modify the graph. "
             "summary must be a concise plain-language assistant reply. "
             "When action is 'explain', summary must directly answer the user's question using the graph content. "
@@ -242,6 +384,7 @@ class AIService:
             user_id=user_id,
             current_graph=graph,
             instruction=instruction,
+            focus_node_id=focus_node_id,
             request_payload=request_payload,
             system_prompt=system_prompt,
             user_prompt=user_prompt,
@@ -389,6 +532,7 @@ class AIService:
         user_id: UUID,
         current_graph: WorkspaceGraph,
         instruction: str,
+        focus_node_id: UUID | None,
         request_payload: dict[str, Any],
         system_prompt: str,
         user_prompt: str,
@@ -410,6 +554,7 @@ class AIService:
                 instruction=instruction,
                 current_graph=current_graph,
                 rewritten_graph=rewritten_graph,
+                focus_node_id=focus_node_id,
             )
             provider_result = self._create_ai_result(
                 operation=AIRequestOperation.WORKSPACE_MUTATION,
@@ -440,6 +585,7 @@ class AIService:
             action, rewritten_graph = self._build_stub_workspace_chat_response(
                 graph=current_graph,
                 instruction=instruction,
+                focus_node_id=focus_node_id,
             )
             summary = self._coerce_workspace_chat_summary(
                 None,
@@ -447,6 +593,7 @@ class AIService:
                 instruction=instruction,
                 current_graph=current_graph,
                 rewritten_graph=rewritten_graph,
+                focus_node_id=focus_node_id,
             )
             response_payload: dict[str, Any] = {
                 "action": action,
@@ -1020,7 +1167,18 @@ class AIService:
         *,
         graph: WorkspaceGraph,
         instruction: str,
+        focus_node_id: UUID | None = None,
     ) -> tuple[str, WorkspaceGraph | None]:
+        framework = self._detect_framework_request(instruction)
+        if framework is not None:
+            if self._looks_like_framework_graph_request(instruction):
+                return "rewrite_graph", self._apply_framework_to_graph(
+                    graph=graph,
+                    framework=framework,
+                    focus_node_id=focus_node_id,
+                )
+            return "explain", None
+
         if self._looks_like_explanation_request(instruction):
             return "explain", None
 
@@ -1285,11 +1443,16 @@ class AIService:
         instruction: str,
         current_graph: WorkspaceGraph,
         rewritten_graph: WorkspaceGraph | None,
+        focus_node_id: UUID | None = None,
     ) -> str:
         if isinstance(raw_summary, str) and raw_summary.strip():
             return self._truncate_text(raw_summary.strip(), max_chars=1200)
         if action == "explain":
-            return self._build_explanation_response(instruction=instruction, graph=current_graph)
+            return self._build_explanation_response(
+                instruction=instruction,
+                graph=current_graph,
+                focus_node_id=focus_node_id,
+            )
         return self._build_workspace_chat_rewrite_summary(
             instruction=instruction,
             current_graph=current_graph,
@@ -1331,7 +1494,23 @@ class AIService:
             max_chars=1200,
         )
 
-    def _build_explanation_response(self, *, instruction: str, graph: WorkspaceGraph) -> str:
+    def _build_explanation_response(
+        self,
+        *,
+        instruction: str,
+        graph: WorkspaceGraph,
+        focus_node_id: UUID | None = None,
+    ) -> str:
+        framework = self._detect_framework_request(instruction)
+        if framework is not None:
+            return self._build_framework_response(
+                framework=framework,
+                graph=graph,
+                instruction=instruction,
+                focus_node_id=focus_node_id,
+                graph_changed=False,
+            )
+
         counts_by_rank: dict[int, int] = defaultdict(int)
         for node in graph.nodes:
             counts_by_rank[int(node.rank)] += 1
@@ -1396,6 +1575,8 @@ class AIService:
 
     def _looks_like_explanation_request(self, instruction: str) -> bool:
         lowered = instruction.lower()
+        if self._detect_framework_request(instruction) is not None and not self._looks_like_framework_graph_request(instruction):
+            return True
         if any(
             keyword in lowered
             for keyword in (
@@ -1439,6 +1620,274 @@ class AIService:
                 "summary",
                 "summarize",
             )
+        )
+
+    def _looks_like_framework_graph_request(self, instruction: str) -> bool:
+        lowered = instruction.lower()
+        return any(
+            keyword in lowered
+            for keyword in (
+                "graph",
+                "canvas",
+                "node",
+                "rank 4",
+                "workspace",
+                "framework node",
+                "masukkan ke graph",
+                "masukin ke graph",
+                "tambahkan ke graph",
+                "apply ke graph",
+            )
+        )
+
+    def _detect_framework_request(self, instruction: str) -> dict[str, Any] | None:
+        lowered = instruction.lower()
+        for framework in STRATEGY_FRAMEWORKS:
+            if any(alias in lowered for alias in framework["aliases"]):
+                return framework
+        return None
+
+    def _find_node_by_id(self, graph: WorkspaceGraph, node_id: UUID | None) -> GraphNode | None:
+        if node_id is None:
+            return None
+        return next((node for node in graph.nodes if node.id == node_id), None)
+
+    def _walk_to_rank(
+        self,
+        *,
+        graph: WorkspaceGraph,
+        start_node: GraphNode,
+        target_rank: NodeRank,
+        direction: str,
+    ) -> GraphNode | None:
+        adjacency: dict[UUID, list[UUID]] = defaultdict(list)
+        for edge in graph.edges:
+            if direction == "incoming":
+                adjacency[edge.target].append(edge.source)
+            else:
+                adjacency[edge.source].append(edge.target)
+
+        visited: set[UUID] = {start_node.id}
+        queue: list[UUID] = list(adjacency.get(start_node.id, []))
+
+        while queue:
+            candidate_id = queue.pop(0)
+            if candidate_id in visited:
+                continue
+            visited.add(candidate_id)
+            candidate = self._find_node_by_id(graph, candidate_id)
+            if candidate is None:
+                continue
+            if candidate.rank == target_rank:
+                return candidate
+            queue.extend(adjacency.get(candidate.id, []))
+
+        return None
+
+    def _resolve_framework_anchor(self, graph: WorkspaceGraph, focus_node_id: UUID | None) -> GraphNode | None:
+        focus_node = self._find_node_by_id(graph, focus_node_id)
+        if focus_node is not None:
+            if focus_node.rank == NodeRank.HYPOTHESIS:
+                return focus_node
+            if int(focus_node.rank) < int(NodeRank.HYPOTHESIS):
+                connected = self._walk_to_rank(
+                    graph=graph,
+                    start_node=focus_node,
+                    target_rank=NodeRank.HYPOTHESIS,
+                    direction="outgoing",
+                )
+                if connected is not None:
+                    return connected
+            else:
+                connected = self._walk_to_rank(
+                    graph=graph,
+                    start_node=focus_node,
+                    target_rank=NodeRank.HYPOTHESIS,
+                    direction="incoming",
+                )
+                if connected is not None:
+                    return connected
+
+        return next((node for node in graph.nodes if node.rank == NodeRank.HYPOTHESIS), None)
+
+    def _resolve_existing_framework_node(
+        self,
+        *,
+        graph: WorkspaceGraph,
+        anchor_node: GraphNode,
+        focus_node_id: UUID | None,
+    ) -> GraphNode | None:
+        focus_node = self._find_node_by_id(graph, focus_node_id)
+        if focus_node is not None and focus_node.rank == NodeRank.FRAMEWORK_ANALYSIS:
+            return focus_node
+
+        outgoing = [edge.target for edge in graph.edges if edge.source == anchor_node.id]
+        for node_id in outgoing:
+            node = self._find_node_by_id(graph, node_id)
+            if node is not None and node.rank == NodeRank.FRAMEWORK_ANALYSIS:
+                return node
+        return None
+
+    def _build_framework_content(self, *, framework: dict[str, Any], anchor_node: GraphNode) -> str:
+        return "\n".join(
+            [
+                f"Recommended framework: {framework['title']}",
+                "",
+                f"Branch anchor: {anchor_node.title}",
+                "Use this lens to structure the analysis before moving to evidence.",
+                "",
+                "Key prompts:",
+                *[f"- {label}" for label in framework["prompt_labels"]],
+            ]
+        )
+
+    def _apply_framework_to_graph(
+        self,
+        *,
+        graph: WorkspaceGraph,
+        framework: dict[str, Any],
+        focus_node_id: UUID | None,
+    ) -> WorkspaceGraph:
+        anchor_node = self._resolve_framework_anchor(graph, focus_node_id)
+        if anchor_node is None:
+            return graph
+
+        existing_framework = self._resolve_existing_framework_node(
+            graph=graph,
+            anchor_node=anchor_node,
+            focus_node_id=focus_node_id,
+        )
+        now = self._now()
+        nodes = [node.model_copy(deep=True) for node in graph.nodes]
+        edges = [edge.model_copy(deep=True) for edge in graph.edges]
+
+        if existing_framework is not None:
+            for index, node in enumerate(nodes):
+                if node.id == existing_framework.id:
+                    nodes[index] = node.model_copy(
+                        update={
+                            "title": framework["title"],
+                            "content": self._build_framework_content(
+                                framework=framework,
+                                anchor_node=anchor_node,
+                            ),
+                            "source": NodeSource.AI,
+                            "updated_at": now,
+                            "metadata": {
+                                **dict(node.metadata),
+                                "framework_key": framework["id"],
+                                "recommended_for": str(anchor_node.id),
+                            },
+                        }
+                    )
+                    break
+        else:
+            new_node = GraphNode(
+                id=uuid4(),
+                rank=NodeRank.FRAMEWORK_ANALYSIS,
+                title=framework["title"],
+                content=self._build_framework_content(framework=framework, anchor_node=anchor_node),
+                source=NodeSource.AI,
+                position=Position(x=anchor_node.position.x + 320, y=anchor_node.position.y),
+                metadata={
+                    "branch_index": anchor_node.metadata.get("branch_index", 0),
+                    "framework_key": framework["id"],
+                    "recommended_for": str(anchor_node.id),
+                },
+                created_at=now,
+                updated_at=now,
+            )
+            nodes.append(new_node)
+            edges.append(
+                GraphEdge(
+                    id=uuid4(),
+                    source=anchor_node.id,
+                    target=new_node.id,
+                    label=None,
+                    metadata={},
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+
+        return self._build_workspace_graph(current_graph=graph, nodes=nodes, edges=edges)
+
+    def _build_framework_response(
+        self,
+        *,
+        framework: dict[str, Any],
+        graph: WorkspaceGraph,
+        instruction: str,
+        focus_node_id: UUID | None,
+        graph_changed: bool,
+    ) -> str:
+        anchor_node = self._resolve_framework_anchor(graph, focus_node_id)
+        root = next((node for node in graph.nodes if node.rank == NodeRank.PROBLEM_STATEMENT), None)
+        evidence_nodes = [node for node in graph.nodes if node.rank == NodeRank.SUPPORTING_DATA][:2]
+        synthesis_nodes = [node for node in graph.nodes if node.rank == NodeRank.SYNTHESIS][:2]
+        validation_issue = graph.metadata.validation.issues[0].message if graph.metadata.validation.issues else None
+        branch_label = anchor_node.title if anchor_node is not None else (root.title if root is not None else "current case")
+        evidence_label = ", ".join(node.title for node in evidence_nodes) or "belum ada evidence yang kuat"
+        synthesis_label = ", ".join(node.title for node in synthesis_nodes) or "belum ada synthesis final"
+
+        sections: list[str]
+        if framework["id"] == "swot":
+            sections = [
+                f"Strengths: branch sudah punya fokus awal di \"{branch_label}\" dan evidence yang terlihat saat ini adalah {evidence_label}.",
+                f"Weaknesses: graph masih punya gap analisis pada {validation_issue or 'pendalaman evidence dan framework pendukung'}.",
+                f"Opportunities: case ini bisa diperdalam lewat branch yang paling dekat dengan {branch_label} untuk menghasilkan synthesis yang lebih tajam.",
+                f"Threats: tanpa validasi tambahan, rekomendasi bisa bias dan synthesis saat ini masih {synthesis_label}.",
+            ]
+        elif framework["id"] == "3cs":
+            sections = [
+                f"Company: kapabilitas internal yang paling relevan saat ini terhubung ke branch \"{branch_label}\".",
+                "Competitor: graph saat ini belum punya tekanan kompetitor yang eksplisit, jadi ini harus jadi area evidence tambahan.",
+                "Customer: gunakan branch ini untuk menguji apa yang benar-benar dirasakan atau dipilih customer.",
+            ]
+        elif framework["id"] == "porter":
+            sections = [
+                "Threat of new entrants: cek seberapa mudah pemain baru meniru atau masuk ke area masalah ini.",
+                "Supplier power: nilai apakah ketergantungan upstream memperburuk branch utama.",
+                "Buyer power: lihat apakah customer punya daya tawar tinggi terhadap harga atau service.",
+                "Threat of substitutes: identifikasi alternatif yang membuat solusi saat ini kurang menarik.",
+                "Competitive rivalry: ukur apakah tekanan inti datang dari kompetisi yang terlalu agresif.",
+            ]
+        elif framework["id"] == "pestel":
+            sections = [
+                "Political / Legal: cek aturan, kebijakan, atau compliance yang bisa membatasi langkah bisnis.",
+                "Economic: ukur dampak biaya, permintaan, atau margin terhadap branch ini.",
+                "Social / Technological: nilai perubahan perilaku pengguna dan kesiapan sistem internal.",
+                "Environmental: masukkan jika ada implikasi operasi, supply chain, atau governance.",
+            ]
+        elif framework["id"] == "most":
+            sections = [
+                f"Mission: pastikan case utama tetap kembali ke problem \"{root.title if root is not None else branch_label}\".",
+                "Objectives: turunkan target yang terukur dari mission tadi.",
+                "Strategies: pilih beberapa strategic moves yang menjawab branch utama.",
+                "Tactics: pastikan tindakan harian benar-benar mendukung strategy, bukan sekadar aktivitas.",
+            ]
+        elif framework["id"] == "7s":
+            sections = [
+                "Strategy / Structure: cek apakah arah dan struktur organisasi mendukung branch ini.",
+                "Systems / Skills: lihat apakah sistem kerja dan kapabilitas tim cukup matang.",
+                "Staff / Style / Shared values: nilai apakah people dan culture memperkuat atau justru menghambat eksekusi.",
+            ]
+        else:
+            sections = [
+                f"Primary activities: telusuri aktivitas utama yang mempengaruhi branch \"{branch_label}\".",
+                "Support activities: cek sistem, data, procurement, dan capability yang menopang aktivitas utama.",
+                f"Value leaks: indikasi kebocoran nilai paling dekat saat ini ada pada {evidence_label}.",
+                "Improvement focus: prioritaskan aktivitas dengan impact tertinggi ke cost, speed, atau service.",
+            ]
+
+        header = f"{framework['title']} untuk branch \"{branch_label}\"."
+        if graph_changed:
+            header = f"{header} Framework ini juga sudah saya terapkan ke graph sebagai Rank 4 node."
+        else:
+            header = f"{header} Graph tidak diubah."
+        return self._truncate_text(
+            "\n".join([header, "", *[f"- {section}" for section in sections], "", f"Request: {instruction.strip()}"]),
+            max_chars=1200,
         )
 
     @staticmethod

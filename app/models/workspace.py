@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, JSON, Integer
+from sqlalchemy import CheckConstraint, ForeignKey, JSON, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -12,12 +12,14 @@ from app.models.mixins import TimestampMixin, UUIDPrimaryKeyMixin
 
 class Workspace(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "workspaces"
+    __table_args__ = (
+        CheckConstraint("version >= 1", name="ck_workspaces_version_positive"),
+    )
 
     project_id: Mapped[UUID] = mapped_column(
         ForeignKey("projects.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
-        index=True,
     )
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     metadata_json: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict, nullable=False)

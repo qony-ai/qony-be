@@ -5,6 +5,7 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import IntegrityError
 
 from app.core.exceptions import AppError
 from app.schemas.common import ErrorEnvelope, ErrorPayload
@@ -51,6 +52,16 @@ def register_exception_handlers(app: FastAPI) -> None:
             code="request_validation_error",
             message="The request payload failed validation.",
             details=exc.errors(),
+        )
+
+    @app.exception_handler(IntegrityError)
+    async def handle_integrity_error(request: Request, exc: IntegrityError) -> JSONResponse:
+        logger.warning("database_integrity_error", exc_info=exc)
+        return _build_error_response(
+            request,
+            status_code=409,
+            code="database_integrity_error",
+            message="The request violates a database integrity constraint.",
         )
 
     @app.exception_handler(Exception)

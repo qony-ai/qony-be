@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -12,6 +12,22 @@ from app.models.mixins import TimestampMixin, UUIDPrimaryKeyMixin
 
 class WorkspaceChatMessage(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "workspace_chat_messages"
+    __table_args__ = (
+        CheckConstraint(
+            "role IN ('user', 'assistant')",
+            name="ck_workspace_chat_messages_role_valid",
+        ),
+        CheckConstraint(
+            "graph_version IS NULL OR graph_version >= 1",
+            name="ck_workspace_chat_messages_graph_version_positive",
+        ),
+        Index(
+            "ix_workspace_chat_messages_workspace_created_id",
+            "workspace_id",
+            "created_at",
+            "id",
+        ),
+    )
 
     project_id: Mapped[UUID] = mapped_column(
         ForeignKey("projects.id", ondelete="CASCADE"),
@@ -21,7 +37,6 @@ class WorkspaceChatMessage(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     workspace_id: Mapped[UUID] = mapped_column(
         ForeignKey("workspaces.id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
     )
     user_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"),

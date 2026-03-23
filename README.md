@@ -10,6 +10,7 @@ Production-ready FastAPI backend for Qony AI. The backend persists the canonical
 - AI provider abstraction with `stub`, `ollama`, and `remote` adapters
 - Export preview traversal over complete Rank 1 to Rank 6 branches
 - Structured logging, error envelopes, health endpoints, and Alembic migrations
+- Environment-gated local actor fallback so production-like environments do not silently use a fake user
 
 ## Folder Structure
 
@@ -127,6 +128,21 @@ Minimum values to confirm:
 - `QONY_REMOTE_AI_API_KEY` only for `remote`
 - `QONY_OLLAMA_BASE_URL` and `QONY_OLLAMA_MODEL` only for `ollama`
 
+Important local actor behavior:
+
+- In `development` and `test`, the backend allows a default actor when auth headers are missing.
+- In `staging` and `production`, you should set `QONY_ALLOW_DEFAULT_ACTOR=false` or leave it unset and send actor headers explicitly.
+- Header names are configurable with `QONY_ACTOR_EMAIL_HEADER` and `QONY_ACTOR_NAME_HEADER`.
+
+Useful runtime settings:
+
+- `QONY_APP_LOG_LEVEL`
+- `QONY_DATABASE_POOL_SIZE`
+- `QONY_DATABASE_MAX_OVERFLOW`
+- `QONY_DATABASE_POOL_TIMEOUT_SECONDS`
+- `QONY_DATABASE_POOL_RECYCLE_SECONDS`
+- `QONY_API_DOCS_ENABLED`
+
 ### 4. Run migrations
 
 ```bash
@@ -166,6 +182,14 @@ curl http://localhost:8000/health
 curl http://localhost:8000/ready
 ```
 
+Project-scoped API requests in local development can also send explicit actor headers:
+
+```bash
+curl http://localhost:8000/api/v1/projects \
+  -H "X-User-Email: you@example.com" \
+  -H "X-User-Name: Your Name"
+```
+
 ## Frontend Integration Notes
 
 - Server-side frontend fetches should use `QONY_API_BASE_URL`.
@@ -197,4 +221,9 @@ curl http://localhost:8000/ready
 
 ## Verification Notes
 
-In this workspace, Python runtime dependencies were not installed, so FastAPI/pytest execution was not run locally. The backend code was syntax-checked with `python3 -m compileall app alembic`.
+Backend validation was run locally with:
+
+- `pytest`
+- `python3 -m compileall app alembic`
+
+If you add a new migration, run `alembic upgrade head` before testing API routes against Postgres.

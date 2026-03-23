@@ -29,6 +29,16 @@ class ConflictError(AppError):
         super().__init__(code="conflict", message=message, status_code=409, details=details)
 
 
+class AuthenticationError(AppError):
+    def __init__(self, message: str = "Authentication required", *, details: Any | None = None) -> None:
+        super().__init__(
+            code="authentication_required",
+            message=message,
+            status_code=401,
+            details=details,
+        )
+
+
 class DomainValidationError(AppError):
     def __init__(self, message: str = "Domain validation failed", *, details: Any | None = None) -> None:
         super().__init__(
@@ -51,3 +61,13 @@ class AIProviderError(AppError):
 
 class ExternalServiceError(AIProviderError):
     pass
+
+
+class ServiceUnavailableError(AppError):
+    def __init__(self, message: str = "Service unavailable", *, details: Any | None = None) -> None:
+        super().__init__(
+            code="service_unavailable",
+            message=message,
+            status_code=503,
+            details=details,
+        )

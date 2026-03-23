@@ -6,6 +6,7 @@ from app.core.config import Settings
 from app.core.exceptions import ConflictError, NotFoundError
 from app.core.security import Actor
 from app.domain.graph import ensure_valid_graph
+from app.domain.mutations import apply_mutation_commands
 from app.repositories.projects import ProjectRepository
 from app.repositories.workspace_chat_messages import WorkspaceChatMessageRepository
 from app.repositories.users import UserRepository
@@ -110,6 +111,7 @@ class WorkspaceService:
             user_id=user.id,
             graph=current_graph,
             instruction=payload.message,
+            focus_node_id=payload.selected_node_id,
         )
         if suggestion.action == "rewrite_graph" and suggestion.graph is not None:
             ensure_valid_graph(suggestion.graph)

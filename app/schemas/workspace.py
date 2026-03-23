@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, computed_field, model_validator
+from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
 
 from app.domain.enums import MutationCommandType, NodeRank, NodeSource
 
@@ -102,6 +102,14 @@ class NodeDraft(BaseModel):
     position: Position = Field(default_factory=Position)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
+    @field_validator("title")
+    @classmethod
+    def normalize_title(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Node title must not be blank.")
+        return normalized
+
 
 class EdgeDraft(BaseModel):
     id: UUID | None = None
@@ -126,6 +134,16 @@ class UpdateNodeCommand(BaseModel):
     position: Position | None = None
     metadata: dict[str, Any] | None = None
     merge_metadata: bool = True
+
+    @field_validator("title")
+    @classmethod
+    def normalize_optional_title(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Node title must not be blank.")
+        return normalized
 
 
 class DeleteNodeCommand(BaseModel):
@@ -178,6 +196,14 @@ class ApplyAIPatchCommand(BaseModel):
     commands: list[PatchCommand] = Field(default_factory=list)
     audit_metadata: dict[str, Any] = Field(default_factory=dict)
 
+    @field_validator("instruction")
+    @classmethod
+    def normalize_instruction(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
     @model_validator(mode="after")
     def require_instruction_or_commands(self) -> "ApplyAIPatchCommand":
         if not self.instruction and not self.commands:
@@ -198,6 +224,14 @@ class WorkspaceMutationRequest(BaseModel):
     reason: str | None = None
     commands: list[MutationCommand] = Field(min_length=1)
 
+    @field_validator("reason")
+    @classmethod
+    def normalize_reason(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
 
 class WorkspaceMutationResult(BaseModel):
     project_id: UUID
@@ -212,6 +246,15 @@ class WorkspaceChatRequest(BaseModel):
     project_id: UUID
     message: str = Field(min_length=3, max_length=4000)
     expected_version: int | None = None
+    selected_node_id: UUID | None = None
+
+    @field_validator("message")
+    @classmethod
+    def normalize_message(cls, value: str) -> str:
+        normalized = value.strip()
+        if len(normalized) < 3:
+            raise ValueError("Message must contain at least 3 non-whitespace characters.")
+        return normalized
 
 
 class WorkspaceChatResponse(BaseModel):

@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.domain.enums import IngestJobStatus
 from app.schemas.workspace import WorkspaceGraph
@@ -20,6 +20,22 @@ class IngestRequest(BaseModel):
     source_content_type: str | None = Field(default=None, max_length=255)
     replace_existing: bool = False
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("raw_text")
+    @classmethod
+    def normalize_raw_text(cls, value: str) -> str:
+        normalized = value.strip()
+        if len(normalized) < 10:
+            raise ValueError("raw_text must contain at least 10 non-whitespace characters.")
+        return normalized
+
+    @field_validator("source_filename", "source_content_type")
+    @classmethod
+    def normalize_optional_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
 
 
 class IngestJobRead(BaseModel):

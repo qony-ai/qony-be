@@ -12,7 +12,7 @@ from app.models.mixins import TimestampMixin, UUIDPrimaryKeyMixin
 class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "users"
 
-    email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False, index=True)
+    email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     external_auth_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
     metadata_json: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict, nullable=False)

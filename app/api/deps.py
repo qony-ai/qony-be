@@ -21,6 +21,9 @@ def get_db_session(request: Request) -> Generator[Session, None, None]:
     session: Session = session_factory()
     try:
         yield session
+    except Exception:
+        session.rollback()
+        raise
     finally:
         session.close()
 
@@ -66,4 +69,3 @@ def get_export_service(
     actor: Actor = Depends(get_actor),
 ) -> ExportPreviewService:
     return ExportPreviewService(session=session, settings=settings, actor=actor)
-

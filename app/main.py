@@ -26,6 +26,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(
         title=active_settings.app_name,
         debug=active_settings.app_debug,
+        docs_url="/docs" if active_settings.docs_enabled else None,
+        redoc_url="/redoc" if active_settings.docs_enabled else None,
+        openapi_url=f"{active_settings.api_prefix}/openapi.json" if active_settings.docs_enabled else None,
         lifespan=lifespan,
     )
     app.state.settings = active_settings
