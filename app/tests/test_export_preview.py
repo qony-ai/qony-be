@@ -61,8 +61,75 @@ def test_export_preview_keeps_only_complete_rank_six_branches():
         ),
     )
 
-    chains, warnings = build_export_preview(graph)
+    chains, report, warnings = build_export_preview(graph)
 
     assert warnings == []
     assert len(chains) == 1
     assert [step.rank for step in chains[0].steps] == [1, 2, 3, 4, 5, 6]
+    assert report is not None
+    assert report.title == "Problem"
+    assert len(report.sections) == 1
+    assert report.sections[0].title == "Sub-problem"
+    assert report.sections[0].branches[0].headline == "Synthesis"
+
+
+def test_export_preview_groups_multiple_branches_under_sub_problem():
+    root = _node(1, "Market entry")
+    sub_problem = _node(2, "Channel strategy")
+    hypothesis_a = _node(3, "Partnerships win")
+    analysis_a = _node(4, "Partner landscape")
+    evidence_a = _node(5, "Distributor interviews")
+    synthesis_a = _node(6, "Use channel partnerships")
+    hypothesis_b = _node(3, "Direct sales win")
+    analysis_b = _node(4, "Unit economics")
+    evidence_b = _node(5, "Pilot conversion data")
+    synthesis_b = _node(6, "Phase in direct motion later")
+
+    graph = WorkspaceGraph(
+        nodes=[
+            root,
+            sub_problem,
+            hypothesis_a,
+            analysis_a,
+            evidence_a,
+            synthesis_a,
+            hypothesis_b,
+            analysis_b,
+            evidence_b,
+            synthesis_b,
+        ],
+        edges=[
+            _edge(root, sub_problem),
+            _edge(sub_problem, hypothesis_a),
+            _edge(hypothesis_a, analysis_a),
+            _edge(analysis_a, evidence_a),
+            _edge(evidence_a, synthesis_a),
+            _edge(sub_problem, hypothesis_b),
+            _edge(hypothesis_b, analysis_b),
+            _edge(analysis_b, evidence_b),
+            _edge(evidence_b, synthesis_b),
+        ],
+        metadata=GraphMetadata(
+            project_id=uuid4(),
+            workspace_id=uuid4(),
+            version=4,
+            updated_at=datetime.now(UTC),
+            validation=GraphValidationSummary(is_valid=True),
+            attributes={},
+        ),
+    )
+
+    _, report, warnings = build_export_preview(graph)
+
+    assert warnings == []
+    assert report is not None
+    assert report.key_takeaways == [
+        "Use channel partnerships",
+        "Phase in direct motion later",
+    ]
+    assert len(report.sections) == 1
+    assert report.sections[0].branch_count == 2
+    assert report.sections[0].evidence_highlights == [
+        "Distributor interviews",
+        "Pilot conversion data",
+    ]

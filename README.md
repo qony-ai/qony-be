@@ -1,55 +1,55 @@
 # Qony AI Backend
 
-Production-ready FastAPI backend for Qony AI. The backend persists the canonical workspace graph in PostgreSQL, validates ranked DAG mutations before commit, and exposes typed API contracts for the Next.js frontend.
+FastAPI backend for Qony AI. The backend owns the canonical project/workspace graph, export transformation logic, and the backend-side trust boundary for authenticated requests coming from the Next.js frontend.
 
-## What This Backend Owns
+## What this backend owns
 
-- Project CRUD and canonical workspace creation
-- Ranked DAG persistence through `nodes`, `edges`, and workspace metadata
-- Reusable graph validation for manual, ingest, export, and AI-assisted mutations
-- AI provider abstraction with `stub`, `ollama`, and `remote` adapters
-- Export preview traversal over complete Rank 1 to Rank 6 branches
-- Structured logging, error envelopes, health endpoints, and Alembic migrations
-- Environment-gated local actor fallback so production-like environments do not silently use a fake user
+- project CRUD and canonical workspace creation
+- ranked DAG persistence through `nodes`, `edges`, and workspace metadata
+- graph validation for manual edits, ingest, export, and AI-assisted mutations
+- export traversal and structured report model generation
+- AI provider abstraction with `stub`, `ollama`, and `remote`
+- signed frontend-to-backend actor validation
+- structured logging, error envelopes, health endpoints, and Alembic migrations
 
-## Folder Structure
+## Auth contract
 
-```text
-qony-be/
-  app/
-    api/
-      deps.py
-      error_handlers.py
-      middleware.py
-      routes/
-    core/
-    db/
-    domain/
-    integrations/ai/
-    models/
-    repositories/
-    schemas/
-    services/
-    tests/
-  alembic/
-  docker-compose.yml
-  alembic.ini
-  pyproject.toml
-  .env.example
-```
+The frontend is the auth system of record. It authenticates the user with Better Auth, then forwards a short-lived signed bearer token to the backend.
 
-## Domain Rules
+Expected bearer claims:
 
-- Non-empty workspaces must have exactly one Rank 1 problem statement.
-- Rank transitions are strict and sequential: `1->2->3->4->5->6`.
-- Reverse edges are rejected.
-- Cycles are rejected.
-- Every non-root node must remain traceable to Rank 1.
-- Rank 4 nodes require a Rank 3 parent.
-- Rank 6 nodes must remain leaf-only.
-- Export preview only includes complete branches that end in reachable Rank 6 nodes.
+- `sub`
+  Better Auth user ID
+- `email`
+  Authenticated user email
+- `name`
+  Authenticated user name
+- `plan`
+  Effective viewer plan, currently `free` or `pro`
+- `entitlements`
+  Effective frontend entitlements
 
-## API Surface
+The backend maps `sub` onto `users.external_auth_id`.
+
+Fallback behavior:
+
+- `QONY_ALLOW_HEADER_ACTOR_FALLBACK=true` keeps old `X-User-*` header fallback available for local development
+- `QONY_ALLOW_DEFAULT_ACTOR=true` allows a local default actor when no auth information is present
+- both fallbacks should be disabled in staging/production
+
+## Export behavior
+
+`GET /api/v1/export/preview/{project_id}` now returns:
+
+- legacy `chains`
+- `report.summary`
+- grouped report sections by Rank 2 sub-problem
+- branch-level hypothesis / analysis / evidence / synthesis fields
+- graph warnings and template metadata
+
+The frontend uses this DTO to render the premium print-first report view.
+
+## API surface
 
 - `GET /health`
 - `GET /ready`
@@ -76,22 +76,33 @@ Successful responses use a `data` envelope. Errors use:
 }
 ```
 
-## AI Provider Modes
+## Domain rules
+
+- non-empty workspaces must have exactly one Rank 1 problem statement
+- rank transitions are strict and sequential: `1 -> 2 -> 3 -> 4 -> 5 -> 6`
+- reverse edges are rejected
+- cycles are rejected
+- every non-root node must remain traceable to Rank 1
+- Rank 4 nodes require a Rank 3 parent
+- Rank 6 nodes must remain leaf-only
+- export preview only includes complete branches that end in reachable Rank 6 nodes
+
+## AI provider modes
 
 Set `QONY_AI_PROVIDER` in `.env`.
 
 - `stub`
-  Deterministic local fallback. Recommended for initial local setup and tests.
+  Deterministic local fallback
 - `ollama`
-  Uses `QONY_OLLAMA_BASE_URL` and `QONY_OLLAMA_MODEL`.
+  Uses `QONY_OLLAMA_BASE_URL` and `QONY_OLLAMA_MODEL`
 - `remote`
-  Uses `QONY_REMOTE_AI_BASE_URL`, `QONY_REMOTE_AI_API_KEY`, and `QONY_REMOTE_AI_MODEL` against an OpenAI-compatible chat completions API.
+  Uses `QONY_REMOTE_AI_BASE_URL`, `QONY_REMOTE_AI_API_KEY`, and `QONY_REMOTE_AI_MODEL`
 
 If `QONY_AI_FALLBACK_TO_STUB=true`, provider failures fall back to the deterministic stub adapter.
 
-## Local Setup
+## Local setup
 
-### 1. Create and activate a virtual environment
+1. Create and activate a virtual environment:
 
 ```bash
 python3 -m venv .venv
@@ -99,23 +110,19 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
-### 2. Start PostgreSQL
-
-Docker Compose:
+2. Start PostgreSQL:
 
 ```bash
 docker compose up -d postgres
 ```
 
-Manual Postgres is also fine. Create:
+Manual Postgres also works. Create:
 
 - database: `qony`
 - user: `qony`
 - password: `qony`
 
-Then set `QONY_DATABASE_URL` accordingly.
-
-### 3. Configure environment
+3. Copy env:
 
 ```bash
 cp .env.example .env
@@ -124,38 +131,30 @@ cp .env.example .env
 Minimum values to confirm:
 
 - `QONY_DATABASE_URL`
+- `QONY_INTERNAL_ACTOR_SECRET`
+- `QONY_INTERNAL_ACTOR_ISSUER`
+- `QONY_INTERNAL_ACTOR_AUDIENCE`
 - `QONY_AI_PROVIDER`
-- `QONY_REMOTE_AI_API_KEY` only for `remote`
-- `QONY_OLLAMA_BASE_URL` and `QONY_OLLAMA_MODEL` only for `ollama`
 
-Important local actor behavior:
+Local actor guidance:
 
-- In `development` and `test`, the backend allows a default actor when auth headers are missing.
-- In `staging` and `production`, you should set `QONY_ALLOW_DEFAULT_ACTOR=false` or leave it unset and send actor headers explicitly.
-- Header names are configurable with `QONY_ACTOR_EMAIL_HEADER` and `QONY_ACTOR_NAME_HEADER`.
+- set `QONY_INTERNAL_ACTOR_SECRET` to the same shared secret used by the frontend as `QONY_INTERNAL_ACTOR_SECRET`
+- keep `QONY_ALLOW_HEADER_ACTOR_FALLBACK=true` only for local migration/debugging
+- keep `QONY_ALLOW_DEFAULT_ACTOR=true` only for local development
 
-Useful runtime settings:
-
-- `QONY_APP_LOG_LEVEL`
-- `QONY_DATABASE_POOL_SIZE`
-- `QONY_DATABASE_MAX_OVERFLOW`
-- `QONY_DATABASE_POOL_TIMEOUT_SECONDS`
-- `QONY_DATABASE_POOL_RECYCLE_SECONDS`
-- `QONY_API_DOCS_ENABLED`
-
-### 4. Run migrations
+4. Run migrations:
 
 ```bash
 alembic upgrade head
 ```
 
-### 5. Start the backend
+5. Start the backend:
 
 ```bash
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-## Useful Commands
+## Useful commands
 
 Create a migration:
 
@@ -166,7 +165,7 @@ alembic revision --autogenerate -m "describe_change"
 Run tests:
 
 ```bash
-pytest
+.venv/bin/pytest
 ```
 
 Syntax check:
@@ -182,7 +181,7 @@ curl http://localhost:8000/health
 curl http://localhost:8000/ready
 ```
 
-Project-scoped API requests in local development can also send explicit actor headers:
+Optional local header fallback request:
 
 ```bash
 curl http://localhost:8000/api/v1/projects \
@@ -190,11 +189,13 @@ curl http://localhost:8000/api/v1/projects \
   -H "X-User-Name: Your Name"
 ```
 
-## Frontend Integration Notes
+## Frontend integration notes
 
-- Server-side frontend fetches should use `QONY_API_BASE_URL`.
-- Browser-side frontend fetches should use `NEXT_PUBLIC_API_BASE_URL`.
-- The canonical graph response shape is always:
+- server-side frontend fetches should use `QONY_API_BASE_URL`
+- browser-side frontend fetches should use `NEXT_PUBLIC_API_BASE_URL`
+- the frontend now forwards `Authorization: Bearer <internal_actor_token>`
+- all workspace edits must go through `PATCH /api/v1/workspace/mutate`
+- the canonical graph response shape remains:
 
 ```json
 {
@@ -204,26 +205,14 @@ curl http://localhost:8000/api/v1/projects \
 }
 ```
 
-- All workspace edits must go through `PATCH /api/v1/workspace/mutate`.
+## Verification notes
 
-## Sample Developer Runbook
+Recommended local verification sequence:
 
 1. Start Postgres.
-2. Install backend dependencies.
-3. Copy `.env.example` to `.env`.
-4. Run `alembic upgrade head`.
-5. Start the backend.
-6. Start the frontend in `qony-fe`.
-7. Create a project in `/dashboard`.
-8. Ingest raw text in `/project/ingest`.
-9. Open `/workspace/{projectId}` and mutate the graph.
-10. Open `/export/preview/{projectId}` and confirm complete branches appear.
-
-## Verification Notes
-
-Backend validation was run locally with:
-
-- `pytest`
-- `python3 -m compileall app alembic`
-
-If you add a new migration, run `alembic upgrade head` before testing API routes against Postgres.
+2. Start the backend.
+3. Start the frontend in `/Users/Shandy/Documents/Project/Qony-AI/qony-fe`.
+4. Register a frontend user.
+5. Confirm authenticated requests create or reuse a backend user with `external_auth_id`.
+6. Open a project, build a complete branch, and verify `/export/preview/{projectId}` returns a structured report payload.
+7. If Stripe is configured on the frontend, verify backend requests carry the expected `plan` and `entitlements` claims.
