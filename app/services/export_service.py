@@ -25,7 +25,11 @@ class ExportPreviewService:
         self.export_snapshot_repository = ExportSnapshotRepository(session)
 
     def build_preview(self, project_id) -> ExportPreviewPayload:
-        user = self.user_repository.get_or_create(email=self.actor.email, name=self.actor.name)
+        user = self.user_repository.get_or_create(
+            email=self.actor.email,
+            name=self.actor.name,
+            external_auth_id=self.actor.auth_user_id,
+        )
         project = self._resolve_project(project_id)
         if project is None:
             raise NotFoundError("Project not found.")
@@ -33,9 +37,19 @@ class ExportPreviewService:
         if workspace is None:
             raise NotFoundError("Workspace not found.")
         graph = workspace_to_graph(workspace)
-        chains, warnings = build_export_preview(graph)
+        chains, report, warnings = build_export_preview(graph)
+        narrative = report.summary if report is not None else None
+        template_key = (
+            "premium-report-v1"
+            if "export:premium-template" in self.actor.entitlements or self.actor.plan == "pro"
+            else "standard-report-v1"
+        )
         output = {
+            "graph_version": graph.metadata.version,
+            "template_key": template_key,
             "chains": [chain.model_dump(mode="json") for chain in chains],
+            "report": report.model_dump(mode="json") if report is not None else None,
+            "narrative": narrative,
             "warnings": warnings,
         }
         snapshot = self.export_snapshot_repository.create_snapshot(
@@ -51,5 +65,9 @@ class ExportPreviewService:
     def _resolve_project(self, project_id):
         if self.actor.source == "default":
             return self.project_repository.get_by_id(project_id)
-        user = self.user_repository.get_or_create(email=self.actor.email, name=self.actor.name)
+        user = self.user_repository.get_or_create(
+            email=self.actor.email,
+            name=self.actor.name,
+            external_auth_id=self.actor.auth_user_id,
+        )
         return self.project_repository.get_for_user(project_id, user.id)

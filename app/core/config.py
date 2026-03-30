@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     request_id_header: str = "X-Request-ID"
     actor_email_header: str = "X-User-Email"
     actor_name_header: str = "X-User-Name"
+    internal_actor_secret: SecretStr | str | None = None
+    internal_actor_issuer: str = "qony-fe"
+    internal_actor_audience: str = "qony-be"
+    allow_header_actor_fallback: bool | None = None
     allow_default_actor: bool | None = None
     default_user_email: str = "local@qony.ai"
     default_user_name: str = "Local Developer"
@@ -72,9 +76,23 @@ class Settings(BaseSettings):
 
     @property
     def allow_default_actor_effective(self) -> bool:
+        if self.environment in {"production", "staging"}:
+            return False
         if self.allow_default_actor is not None:
             return self.allow_default_actor
         return self.environment in {"development", "test"}
+
+    @property
+    def allow_header_actor_fallback_effective(self) -> bool:
+        if self.allow_header_actor_fallback is not None:
+            return self.allow_header_actor_fallback
+        return self.environment in {"development", "test"}
+
+    @property
+    def internal_actor_secret_value(self) -> str:
+        if isinstance(self.internal_actor_secret, SecretStr):
+            return self.internal_actor_secret.get_secret_value()
+        return self.internal_actor_secret or ""
 
     @property
     def remote_ai_api_key_value(self) -> str:

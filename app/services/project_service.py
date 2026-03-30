@@ -30,12 +30,20 @@ class ProjectService:
         if self.actor.source == "default":
             projects = self.project_repository.list_all()
         else:
-            user = self.user_repository.get_or_create(email=self.actor.email, name=self.actor.name)
+            user = self.user_repository.get_or_create(
+                email=self.actor.email,
+                name=self.actor.name,
+                external_auth_id=self.actor.auth_user_id,
+            )
             projects = self.project_repository.list_for_user(user.id)
         return ProjectListPayload(items=[project_to_summary(project) for project in projects])
 
     def create_project(self, payload: ProjectCreateRequest) -> ProjectDetail:
-        user = self.user_repository.get_or_create(email=self.actor.email, name=self.actor.name)
+        user = self.user_repository.get_or_create(
+            email=self.actor.email,
+            name=self.actor.name,
+            external_auth_id=self.actor.auth_user_id,
+        )
         project = self.project_repository.create(
             user_id=user.id,
             name=payload.name,
@@ -87,5 +95,9 @@ class ProjectService:
     def _resolve_project(self, project_id):
         if self.actor.source == "default":
             return self.project_repository.get_by_id(project_id)
-        user = self.user_repository.get_or_create(email=self.actor.email, name=self.actor.name)
+        user = self.user_repository.get_or_create(
+            email=self.actor.email,
+            name=self.actor.name,
+            external_auth_id=self.actor.auth_user_id,
+        )
         return self.project_repository.get_for_user(project_id, user.id)

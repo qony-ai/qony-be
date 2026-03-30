@@ -26,7 +26,11 @@ class IngestService:
         self.ai_service = AIService(session=session, settings=settings, actor=actor)
 
     def ingest(self, payload: IngestRequest) -> IngestResponseData:
-        user = self.user_repository.get_or_create(email=self.actor.email, name=self.actor.name)
+        user = self.user_repository.get_or_create(
+            email=self.actor.email,
+            name=self.actor.name,
+            external_auth_id=self.actor.auth_user_id,
+        )
         project = self._resolve_project(payload.project_id)
         if project is None:
             raise NotFoundError("Project not found.")
@@ -82,5 +86,9 @@ class IngestService:
     def _resolve_project(self, project_id):
         if self.actor.source == "default":
             return self.project_repository.get_by_id(project_id)
-        user = self.user_repository.get_or_create(email=self.actor.email, name=self.actor.name)
+        user = self.user_repository.get_or_create(
+            email=self.actor.email,
+            name=self.actor.name,
+            external_auth_id=self.actor.auth_user_id,
+        )
         return self.project_repository.get_for_user(project_id, user.id)
