@@ -42,7 +42,12 @@ class UserRepository:
                 user.external_auth_id = external_auth_id
             return user
 
-        user = User(email=email, name=name, external_auth_id=external_auth_id)
+        user = User(
+            email=email,
+            name=name,
+            external_auth_id=external_auth_id,
+            role="user",
+        )
         self.session.add(user)
         self.session.flush()
         return user

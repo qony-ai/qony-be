@@ -1,3 +1,8 @@
+from sqlalchemy import select
+
+from app.models.user import User
+
+
 def test_project_crud_flow(client, user_headers):
     create_response = client.post(
         "/api/v1/projects",
@@ -51,3 +56,32 @@ def test_local_mode_can_access_existing_projects_without_user_headers(client, us
     get_response = client.get(f"/api/v1/projects/{created['id']}")
     assert get_response.status_code == 200
     assert get_response.json()["data"]["id"] == created["id"]
+
+
+def test_internal_actor_project_create_sets_default_user_role(
+    app,
+    client,
+    internal_actor_token,
+):
+    token = internal_actor_token(
+        sub="auth-user-999",
+        email="actor@gmail.com",
+        name="Actor User",
+    )
+
+    response = client.post(
+        "/api/v1/projects",
+        json={"name": "Actor Project", "description": "Created via internal actor token"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 201
+
+    with app.state.session_factory() as session:
+        user = session.scalar(
+            select(User).where(User.external_auth_id == "auth-user-999")
+        )
+
+    assert user is not None
+    assert user.email == "actor@gmail.com"
+    assert user.role == "user"
