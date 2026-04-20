@@ -6,7 +6,6 @@ import hashlib
 import hmac
 import json
 from pathlib import Path
-from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -14,13 +13,13 @@ from fastapi.testclient import TestClient
 from app.core.config import Settings
 from app.db.base import Base
 from app.main import create_app
-from app.schemas.workspace import GraphMetadata, GraphValidationSummary, WorkspaceGraph
 
 
 @pytest.fixture
 def test_settings(tmp_path: Path) -> Settings:
     database_path = tmp_path / "qony-test.db"
     return Settings(
+        _env_file=None,
         environment="test",
         app_debug=False,
         database_url=f"sqlite:///{database_path}",
@@ -98,18 +97,3 @@ def internal_actor_token(test_settings: Settings):
         )
 
     return factory
-
-
-def make_empty_graph(*, project_id: UUID | None = None, workspace_id: UUID | None = None, version: int = 1) -> WorkspaceGraph:
-    return WorkspaceGraph(
-        nodes=[],
-        edges=[],
-        metadata=GraphMetadata(
-            project_id=project_id or uuid4(),
-            workspace_id=workspace_id or uuid4(),
-            version=version,
-            updated_at=datetime.now(UTC),
-            validation=GraphValidationSummary(is_valid=True),
-            attributes={},
-        ),
-    )

@@ -1,4 +1,4 @@
-from enum import IntEnum, StrEnum
+from enum import StrEnum
 
 
 class ProjectStatus(StrEnum):
@@ -9,64 +9,69 @@ class ProjectStatus(StrEnum):
 
 class IngestJobStatus(StrEnum):
     PENDING = "pending"
+    PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
 
 
-class ExportSnapshotStatus(StrEnum):
+class KnowledgeNodeType(StrEnum):
+    PROBLEM = "problem"
+    SOLUTION = "solution"
+    ASSUMPTION = "assumption"
+    METRIC = "metric"
+    STAKEHOLDER = "stakeholder"
+    RISK = "risk"
+    OPPORTUNITY = "opportunity"
+    CONSTRAINT = "constraint"
+    EVIDENCE = "evidence"
+    MARKET_DATA = "market_data"
+    TREND = "trend"
+    COMPETITOR = "competitor"
+    REGULATION = "regulation"
+    OBJECTIVE = "objective"
+    RESOURCE = "resource"
+
+
+class KnowledgeRelationType(StrEnum):
+    CAUSES = "causes"
+    SUPPORTS = "supports"
+    CONTRADICTS = "contradicts"
+    REQUIRES = "requires"
+    AFFECTS = "affects"
+    RELATED_TO = "related_to"
+    MEASURED_BY = "measured_by"
+    MITIGATED_BY = "mitigated_by"
+
+
+class KnowledgeNodeSource(StrEnum):
+    DOCUMENT = "document"
+    WEB = "web"
+    USER = "user"
+
+
+class ExportType(StrEnum):
+    PITCH_DECK = "pitch_deck"
+    BUSINESS_DOCUMENT = "business_document"
+
+
+class ExportJobStatus(StrEnum):
+    PENDING = "pending"
+    PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
 
 
-class AIRequestStatus(StrEnum):
-    COMPLETED = "completed"
-    FALLBACK = "fallback"
-    FAILED = "failed"
+class SubscriptionStatus(StrEnum):
+    FREE = "free"
+    PENDING = "pending"
+    ACTIVE = "active"
+    EXPIRED = "expired"
+    CANCELED = "canceled"
+    DENIED = "denied"
 
 
-class NodeRank(IntEnum):
-    PROBLEM_STATEMENT = 1
-    SUB_PROBLEM = 2
-    HYPOTHESIS = 3
-    FRAMEWORK_ANALYSIS = 4
-    SUPPORTING_DATA = 5
-    SYNTHESIS = 6
-
-    @property
-    def kind(self) -> str:
-        return {
-            NodeRank.PROBLEM_STATEMENT: "problem_statement",
-            NodeRank.SUB_PROBLEM: "sub_problem",
-            NodeRank.HYPOTHESIS: "hypothesis",
-            NodeRank.FRAMEWORK_ANALYSIS: "framework_analysis",
-            NodeRank.SUPPORTING_DATA: "supporting_evidence",
-            NodeRank.SYNTHESIS: "synthesis",
-        }[self]
-
-
-class NodeSource(StrEnum):
-    MANUAL = "manual"
-    INGEST = "ingest"
-    AI = "ai"
-
-
-class MutationCommandType(StrEnum):
-    ADD_NODE = "add_node"
-    UPDATE_NODE = "update_node"
-    DELETE_NODE = "delete_node"
-    ADD_EDGE = "add_edge"
-    DELETE_EDGE = "delete_edge"
-    MOVE_NODE = "move_node"
-    APPLY_AI_PATCH = "apply_ai_patch"
-
-
-class AIProviderKind(StrEnum):
-    STUB = "stub"
-    OLLAMA = "ollama"
-    REMOTE = "remote"
-
-
-class AIRequestOperation(StrEnum):
-    INGEST = "ingest"
-    WORKSPACE_MUTATION = "workspace_mutation"
-    EXPORT_ASSIST = "export_assist"
+class UsageEventType(StrEnum):
+    UPLOAD = "upload"
+    SCRAPE = "scrape"
+    AI_EDIT = "ai_edit"
+    EXPORT = "export"

@@ -1,3 +1,14 @@
-from app.api.routes import export, health, ingest, projects, workspace
+from app.api.routes import admin, auth, edges, export, graph, health, ingestion, nodes, payment, projects
 
-__all__ = ["export", "health", "ingest", "projects", "workspace"]
+__all__ = [
+    "admin",
+    "auth",
+    "edges",
+    "export",
+    "graph",
+    "health",
+    "ingestion",
+    "nodes",
+    "payment",
+    "projects",
+]

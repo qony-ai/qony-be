@@ -62,7 +62,7 @@ class ProjectUpdateRequest(BaseModel):
 
 class ProjectSummary(BaseModel):
     id: UUID
-    workspace_id: UUID
+    graph_id: UUID
     name: str
     description: str | None = None
     status: ProjectStatus
@@ -87,10 +87,10 @@ ProjectRead = ProjectDetail
 
 def project_to_summary(project: "Project") -> ProjectSummary:
     if project.workspace is None:
-        raise ValueError("Project must have a canonical workspace.")
+        raise ValueError("Project must have a canonical graph.")
     return ProjectSummary(
         id=project.id,
-        workspace_id=project.workspace.id,
+        graph_id=project.workspace.id,
         name=project.name,
         description=project.description,
         status=ProjectStatus(project.status),

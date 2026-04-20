@@ -22,6 +22,7 @@ def _build_client(settings: Settings) -> TestClient:
 
 def test_production_environment_requires_actor_headers(tmp_path: Path) -> None:
     settings = Settings(
+        _env_file=None,
         environment="production",
         database_url=f"sqlite:///{tmp_path / 'prod-no-headers.db'}",
         ai_provider="stub",
@@ -37,6 +38,7 @@ def test_production_environment_requires_actor_headers(tmp_path: Path) -> None:
 
 def test_actor_headers_must_be_provided_together(tmp_path: Path) -> None:
     settings = Settings(
+        _env_file=None,
         environment="production",
         database_url=f"sqlite:///{tmp_path / 'prod-partial-headers.db'}",
         ai_provider="stub",
@@ -55,6 +57,7 @@ def test_actor_headers_must_be_provided_together(tmp_path: Path) -> None:
 
 def test_invalid_actor_email_is_rejected(tmp_path: Path) -> None:
     settings = Settings(
+        _env_file=None,
         environment="production",
         database_url=f"sqlite:///{tmp_path / 'prod-invalid-email.db'}",
         ai_provider="stub",
@@ -76,6 +79,7 @@ def test_invalid_actor_email_is_rejected(tmp_path: Path) -> None:
 
 def test_valid_internal_actor_token_is_accepted(tmp_path: Path) -> None:
     settings = Settings(
+        _env_file=None,
         environment="production",
         database_url=f"sqlite:///{tmp_path / 'prod-bearer.db'}",
         ai_provider="stub",
@@ -98,6 +102,7 @@ def test_valid_internal_actor_token_is_accepted(tmp_path: Path) -> None:
 
 def test_invalid_internal_actor_token_is_rejected_without_header_fallback(tmp_path: Path) -> None:
     settings = Settings(
+        _env_file=None,
         environment="production",
         database_url=f"sqlite:///{tmp_path / 'prod-invalid-bearer.db'}",
         ai_provider="stub",
@@ -120,6 +125,7 @@ def test_invalid_internal_actor_token_is_rejected_without_header_fallback(tmp_pa
 
 def test_docs_can_be_disabled_in_production(tmp_path: Path) -> None:
     settings = Settings(
+        _env_file=None,
         environment="production",
         database_url=f"sqlite:///{tmp_path / 'prod-docs-disabled.db'}",
         ai_provider="stub",

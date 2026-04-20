@@ -17,6 +17,7 @@ class Edge(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     workspace_id: Mapped[UUID] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
     source_node_id: Mapped[UUID] = mapped_column(ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False, index=True)
     target_node_id: Mapped[UUID] = mapped_column(ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False, index=True)
+    relation_type: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     label: Mapped[str | None] = mapped_column(String(255), nullable=True)
     metadata_json: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict, nullable=False)
 

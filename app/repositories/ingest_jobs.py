@@ -8,6 +8,8 @@ from app.models.ingest_job import IngestJob
 
 
 class IngestJobRepository:
+    model_class = IngestJob
+
     def __init__(self, session: Session) -> None:
         self.session = session
 

@@ -1,11 +1,12 @@
 from contextlib import asynccontextmanager
 
+import app.models  # noqa: F401
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.error_handlers import register_exception_handlers
 from app.api.middleware import register_middleware
-from app.api.routes import export, health, ingest, projects, workspace
+from app.api.routes import admin, auth, edges, export, graph, health, ingestion, nodes, payment, projects
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
 from app.db.session import create_engine_from_settings, create_session_factory
@@ -48,10 +49,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_exception_handlers(app)
 
     app.include_router(health.router)
+    app.include_router(auth.router, prefix=active_settings.api_prefix)
     app.include_router(projects.router, prefix=active_settings.api_prefix)
-    app.include_router(ingest.router, prefix=active_settings.api_prefix)
-    app.include_router(workspace.router, prefix=active_settings.api_prefix)
-    app.include_router(export.router, prefix=active_settings.api_prefix)
+    app.include_router(ingestion.router, prefix=active_settings.api_prefix)
+    app.include_router(graph.router, prefix=active_settings.api_prefix)
+    app.include_router(nodes.router, prefix=active_settings.api_prefix)
+    app.include_router(edges.router, prefix=active_settings.api_prefix)
+    app.include_router(export.jobs_router, prefix=active_settings.api_prefix)
+    app.include_router(payment.router, prefix=active_settings.api_prefix)
+    app.include_router(admin.router, prefix=active_settings.api_prefix)
 
     return app
 

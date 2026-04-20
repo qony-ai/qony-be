@@ -7,7 +7,7 @@ def test_project_crud_flow(client, user_headers):
     assert create_response.status_code == 201
     created = create_response.json()["data"]
     assert created["name"] == "Market Entry"
-    assert created["workspace_id"]
+    assert created["graph_id"]
 
     list_response = client.get("/api/v1/projects", headers=user_headers)
     assert list_response.status_code == 200

@@ -49,6 +49,16 @@ class DomainValidationError(AppError):
         )
 
 
+class AuthorizationError(AppError):
+    def __init__(self, message: str = "Forbidden", *, details: Any | None = None) -> None:
+        super().__init__(
+            code="forbidden",
+            message=message,
+            status_code=403,
+            details=details,
+        )
+
+
 class AIProviderError(AppError):
     def __init__(self, message: str = "AI provider unavailable", *, details: Any | None = None) -> None:
         super().__init__(

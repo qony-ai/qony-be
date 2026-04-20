@@ -28,11 +28,4 @@ class Workspace(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     nodes = relationship("Node", back_populates="workspace", cascade="all, delete-orphan", order_by="Node.created_at")
     edges = relationship("Edge", back_populates="workspace", cascade="all, delete-orphan", order_by="Edge.created_at")
     ingest_jobs = relationship("IngestJob", back_populates="workspace")
-    export_snapshots = relationship("ExportSnapshot", back_populates="workspace")
-    ai_request_logs = relationship("AIRequestLog", back_populates="workspace")
-    chat_messages = relationship(
-        "WorkspaceChatMessage",
-        back_populates="workspace",
-        cascade="all, delete-orphan",
-        order_by="WorkspaceChatMessage.created_at",
-    )
+    export_jobs = relationship("ExportJob", back_populates="workspace")

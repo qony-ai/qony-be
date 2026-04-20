@@ -5,11 +5,12 @@ from sqlalchemy.orm import Session
 
 from app.core.config import Settings
 from app.core.security import Actor, resolve_actor
-from app.services.ai_service import AIService
-from app.services.export_service import ExportPreviewService
-from app.services.ingest_service import IngestService
+from app.services.admin_service import AdminService
+from app.services.export_engine import ExportEngine
+from app.services.ingest_service import PRDIngestionService
+from app.services.graph_engine import GraphEngine
+from app.services.payment_service import PaymentService
 from app.services.project_service import ProjectService
-from app.services.workspace_service import WorkspaceService
 
 
 def get_settings(request: Request) -> Settings:
@@ -39,33 +40,40 @@ def get_project_service(
     return ProjectService(session=session, actor=actor)
 
 
-def get_ai_service(
+def get_prd_ingestion_service(
     session: Session = Depends(get_db_session),
     settings: Settings = Depends(get_settings),
     actor: Actor = Depends(get_actor),
-) -> AIService:
-    return AIService(session=session, settings=settings, actor=actor)
+) -> PRDIngestionService:
+    return PRDIngestionService(session=session, settings=settings, actor=actor)
 
 
-def get_ingest_service(
+def get_graph_engine(
     session: Session = Depends(get_db_session),
     settings: Settings = Depends(get_settings),
     actor: Actor = Depends(get_actor),
-) -> IngestService:
-    return IngestService(session=session, settings=settings, actor=actor)
+) -> GraphEngine:
+    return GraphEngine(session=session, settings=settings, actor=actor)
 
 
-def get_workspace_service(
+def get_export_engine(
     session: Session = Depends(get_db_session),
     settings: Settings = Depends(get_settings),
     actor: Actor = Depends(get_actor),
-) -> WorkspaceService:
-    return WorkspaceService(session=session, settings=settings, actor=actor)
+) -> ExportEngine:
+    return ExportEngine(session=session, settings=settings, actor=actor)
 
 
-def get_export_service(
+def get_payment_service(
     session: Session = Depends(get_db_session),
     settings: Settings = Depends(get_settings),
     actor: Actor = Depends(get_actor),
-) -> ExportPreviewService:
-    return ExportPreviewService(session=session, settings=settings, actor=actor)
+) -> PaymentService:
+    return PaymentService(session=session, settings=settings, actor=actor)
+
+
+def get_admin_service(
+    session: Session = Depends(get_db_session),
+    actor: Actor = Depends(get_actor),
+) -> AdminService:
+    return AdminService(session=session, actor=actor)

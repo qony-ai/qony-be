@@ -34,10 +34,5 @@ class Project(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         cascade="all, delete-orphan",
     )
     ingest_jobs = relationship("IngestJob", back_populates="project", cascade="all, delete-orphan")
-    export_snapshots = relationship("ExportSnapshot", back_populates="project", cascade="all, delete-orphan")
-    ai_request_logs = relationship("AIRequestLog", back_populates="project", cascade="all, delete-orphan")
-    workspace_chat_messages = relationship(
-        "WorkspaceChatMessage",
-        back_populates="project",
-        cascade="all, delete-orphan",
-    )
+    export_jobs = relationship("ExportJob", back_populates="project", cascade="all, delete-orphan")
+    usage_events = relationship("UsageEvent", back_populates="project", cascade="all, delete-orphan")

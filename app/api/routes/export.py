@@ -4,17 +4,17 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 
-from app.api.deps import get_export_service
+from app.api.deps import get_export_engine
 from app.schemas.common import ApiEnvelope
-from app.schemas.export import ExportPreviewPayload
-from app.services.export_service import ExportPreviewService
+from app.schemas.export import ExportJobRead
+from app.services.export_engine import ExportEngine
 
-router = APIRouter(prefix="/export", tags=["export"])
+jobs_router = APIRouter(tags=["exports"])
 
 
-@router.get("/preview/{project_id}", response_model=ApiEnvelope[ExportPreviewPayload])
-def get_export_preview(
-    project_id: UUID,
-    service: ExportPreviewService = Depends(get_export_service),
-) -> ApiEnvelope[ExportPreviewPayload]:
-    return ApiEnvelope(data=service.build_preview(project_id))
+@jobs_router.get("/exports/{job_id}", response_model=ApiEnvelope[ExportJobRead])
+async def get_export_job_prd(
+    job_id: UUID,
+    service: ExportEngine = Depends(get_export_engine),
+) -> ApiEnvelope[ExportJobRead]:
+    return ApiEnvelope(data=service.get_export_job(job_id))
