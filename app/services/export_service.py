@@ -1,11 +1,20 @@
+"""Export service placeholder.
+
+The old Minto-chain export preview is retired. Chunk C will replace this
+service with the real export engine (component selection + HTML render +
+Playwright PDF + ExportJob records). This stub exists so the ``/export/preview``
+route keeps returning a structured 501-style envelope rather than crashing.
+"""
+
 from __future__ import annotations
+
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
 from app.core.exceptions import NotFoundError
 from app.core.security import Actor
-from app.domain.export import build_export_preview
 from app.repositories.export_snapshots import ExportSnapshotRepository
 from app.repositories.projects import ProjectRepository
 from app.repositories.users import UserRepository
@@ -24,7 +33,7 @@ class ExportPreviewService:
         self.workspace_repository = WorkspaceRepository(session)
         self.export_snapshot_repository = ExportSnapshotRepository(session)
 
-    def build_preview(self, project_id) -> ExportPreviewPayload:
+    def build_preview(self, project_id: UUID) -> ExportPreviewPayload:
         user = self.user_repository.get_or_create(
             email=self.actor.email,
             name=self.actor.name,
@@ -37,32 +46,25 @@ class ExportPreviewService:
         if workspace is None:
             raise NotFoundError("Workspace not found.")
         graph = workspace_to_graph(workspace)
-        chains, report, warnings = build_export_preview(graph)
-        narrative = report.summary if report is not None else None
-        template_key = (
-            "premium-report-v1"
-            if "export:premium-template" in self.actor.entitlements or self.actor.plan == "pro"
-            else "standard-report-v1"
-        )
+
         output = {
             "graph_version": graph.metadata.version,
-            "template_key": template_key,
-            "chains": [chain.model_dump(mode="json") for chain in chains],
-            "report": report.model_dump(mode="json") if report is not None else None,
-            "narrative": narrative,
-            "warnings": warnings,
+            "deliverable_type": None,
+            "warnings": [
+                "Export engine is being rebuilt. Preview will return real output once Chunk C is merged.",
+            ],
         }
         snapshot = self.export_snapshot_repository.create_snapshot(
             project_id=project.id,
             workspace_id=workspace.id,
             requested_by_user_id=user.id,
-            branch_count=len(chains),
+            branch_count=0,
             output_json=output,
         )
         self.session.commit()
         return export_snapshot_to_read(snapshot)
 
-    def _resolve_project(self, project_id):
+    def _resolve_project(self, project_id: UUID):
         if self.actor.source == "default":
             return self.project_repository.get_by_id(project_id)
         user = self.user_repository.get_or_create(

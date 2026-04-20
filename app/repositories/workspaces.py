@@ -50,10 +50,13 @@ class WorkspaceRepository:
                     workspace_id=workspace.id,
                 )
                 self.session.add(node)
-            node.rank = int(graph_node.rank)
+            node.type = graph_node.type.value
             node.title = graph_node.title
-            node.content = graph_node.content
+            node.description = graph_node.description
             node.source = graph_node.source.value
+            node.is_enrichment = graph_node.is_enrichment
+            node.source_url = graph_node.source_url
+            node.confidence = graph_node.confidence
             node.position_x = graph_node.position.x
             node.position_y = graph_node.position.y
             node.metadata_json = dict(graph_node.metadata)
@@ -71,6 +74,7 @@ class WorkspaceRepository:
                     workspace_id=workspace.id,
                 )
                 self.session.add(edge)
+            edge.type = graph_edge.type.value
             edge.source_node_id = graph_edge.source
             edge.target_node_id = graph_edge.target
             edge.label = graph_edge.label

@@ -89,10 +89,13 @@ def _apply_add_node(graph: WorkspaceGraph, command: AddNodeCommand) -> None:
     graph.nodes.append(
         GraphNode(
             id=node_id,
-            rank=command.node.rank,
+            type=command.node.type,
             title=command.node.title,
-            content=command.node.content,
+            description=command.node.description,
             source=command.node.source,
+            is_enrichment=command.node.is_enrichment,
+            source_url=command.node.source_url,
+            confidence=command.node.confidence,
             position=command.node.position,
             metadata=command.node.metadata,
             created_at=timestamp,
@@ -103,14 +106,20 @@ def _apply_add_node(graph: WorkspaceGraph, command: AddNodeCommand) -> None:
 
 def _apply_update_node(graph: WorkspaceGraph, command: UpdateNodeCommand) -> None:
     node = _get_node(graph, command.node_id)
-    if command.rank is not None:
-        node.rank = command.rank
+    if command.node_type is not None:
+        node.type = command.node_type
     if command.title is not None:
         node.title = command.title
-    if command.content is not None:
-        node.content = command.content
+    if command.description is not None:
+        node.description = command.description
     if command.source is not None:
         node.source = command.source
+    if command.is_enrichment is not None:
+        node.is_enrichment = command.is_enrichment
+    if command.source_url is not None:
+        node.source_url = command.source_url
+    if command.confidence is not None:
+        node.confidence = command.confidence
     if command.position is not None:
         node.position = command.position
     if command.metadata is not None:
@@ -147,6 +156,7 @@ def _apply_add_edge(graph: WorkspaceGraph, command: AddEdgeCommand) -> None:
     graph.edges.append(
         GraphEdge(
             id=edge_id,
+            type=command.edge.type,
             source=command.edge.source,
             target=command.edge.target,
             label=command.edge.label,
@@ -173,10 +183,7 @@ def _apply_delete_edge(graph: WorkspaceGraph, command: DeleteEdgeCommand) -> Non
 
 def _apply_move_node(graph: WorkspaceGraph, command: MoveNodeCommand) -> None:
     node = _get_node(graph, command.node_id)
-    if command.position is not None:
-        node.position = command.position
-    if command.rank is not None:
-        node.rank = command.rank
+    node.position = command.position
     node.updated_at = _now()
 
 

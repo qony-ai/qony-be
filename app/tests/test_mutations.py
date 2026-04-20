@@ -4,6 +4,7 @@ from uuid import uuid4
 import pytest
 
 from app.core.exceptions import DomainValidationError
+from app.domain.enums import EdgeType, NodeSource, NodeType
 from app.domain.graph import ensure_valid_graph
 from app.domain.mutations import apply_mutation_commands
 from app.schemas.workspace import (
@@ -18,6 +19,7 @@ from app.schemas.workspace import (
     MoveNodeCommand,
     NodeDraft,
     Position,
+    UpdateNodeCommand,
     WorkspaceGraph,
 )
 
@@ -26,10 +28,13 @@ def _base_graph() -> WorkspaceGraph:
     now = datetime.now(UTC)
     root = GraphNode(
         id=uuid4(),
-        rank=1,
-        title="Problem",
-        content="Root problem statement",
-        source="manual",
+        type=NodeType.PROBLEM,
+        title="Primary problem",
+        description="Root problem statement",
+        source=NodeSource.USER,
+        is_enrichment=False,
+        source_url=None,
+        confidence=1.0,
         position=Position(x=0, y=0),
         metadata={},
         created_at=now,
@@ -60,17 +65,23 @@ def test_mutation_engine_applies_add_node_and_edge():
                 type="add_node",
                 node=NodeDraft(
                     id=child_id,
-                    rank=2,
-                    title="Sub-problem",
-                    content="Investigate pricing pressure",
-                    source="manual",
+                    type=NodeType.SOLUTION,
+                    title="Automate reorder",
+                    description="Automated replenishment policy for fast-moving SKUs",
+                    source=NodeSource.USER,
                     position=Position(x=200, y=100),
                     metadata={},
                 ),
             ),
             AddEdgeCommand(
                 type="add_edge",
-                edge=EdgeDraft(source=root.id, target=child_id, label=None, metadata={}),
+                edge=EdgeDraft(
+                    type=EdgeType.AFFECTS,
+                    source=child_id,
+                    target=root.id,
+                    label=None,
+                    metadata={},
+                ),
             ),
         ],
     )
@@ -82,11 +93,11 @@ def test_mutation_engine_applies_add_node_and_edge():
     assert ai_commands_applied == 0
 
 
-def test_mutation_engine_allows_one_parent_to_have_multiple_children():
+def test_mutation_engine_allows_many_edges_from_one_node():
     graph = _base_graph()
     root = graph.nodes[0]
-    first_child_id = uuid4()
-    second_child_id = uuid4()
+    solution_id = uuid4()
+    risk_id = uuid4()
 
     mutated, _, _ = apply_mutation_commands(
         graph,
@@ -94,34 +105,30 @@ def test_mutation_engine_allows_one_parent_to_have_multiple_children():
             AddNodeCommand(
                 type="add_node",
                 node=NodeDraft(
-                    id=first_child_id,
-                    rank=2,
-                    title="Sub-problem A",
-                    content="Investigate demand loss",
-                    source="manual",
-                    position=Position(x=200, y=0),
+                    id=solution_id,
+                    type=NodeType.SOLUTION,
+                    title="Solution",
+                    description="Proposed solution",
                     metadata={"branch_index": 0},
                 ),
             ),
             AddNodeCommand(
                 type="add_node",
                 node=NodeDraft(
-                    id=second_child_id,
-                    rank=2,
-                    title="Sub-problem B",
-                    content="Investigate procurement bottlenecks",
-                    source="manual",
-                    position=Position(x=200, y=220),
+                    id=risk_id,
+                    type=NodeType.RISK,
+                    title="Risk",
+                    description="Adoption risk",
                     metadata={"branch_index": 1},
                 ),
             ),
             AddEdgeCommand(
                 type="add_edge",
-                edge=EdgeDraft(source=root.id, target=first_child_id, label=None, metadata={}),
+                edge=EdgeDraft(type=EdgeType.AFFECTS, source=solution_id, target=root.id),
             ),
             AddEdgeCommand(
                 type="add_edge",
-                edge=EdgeDraft(source=root.id, target=second_child_id, label=None, metadata={}),
+                edge=EdgeDraft(type=EdgeType.AFFECTS, source=risk_id, target=root.id),
             ),
         ],
     )
@@ -129,10 +136,10 @@ def test_mutation_engine_allows_one_parent_to_have_multiple_children():
     summary = ensure_valid_graph(mutated)
 
     assert summary.is_valid is True
-    assert len([edge for edge in mutated.edges if edge.source == root.id]) == 2
+    assert len([edge for edge in mutated.edges if edge.target == root.id]) == 2
 
 
-def test_mutation_engine_rejects_invalid_ai_patch_size():
+def test_mutation_engine_rejects_oversized_ai_patch():
     graph = _base_graph()
 
     with pytest.raises(DomainValidationError):
@@ -151,30 +158,65 @@ def test_mutation_engine_rejects_invalid_ai_patch_size():
         )
 
 
-def test_move_node_can_change_rank_and_position_but_requires_valid_followup_edges():
+def test_update_node_can_change_type_title_description_and_metadata():
     graph = _base_graph()
     root = graph.nodes[0]
-    sub_problem_id = uuid4()
-    hypothesis_id = uuid4()
+
+    mutated, _, _ = apply_mutation_commands(
+        graph,
+        [
+            UpdateNodeCommand(
+                type="update_node",
+                node_id=root.id,
+                node_type=NodeType.OPPORTUNITY,
+                title="Opportunity: inventory visibility",
+                description="Reframe stockout as an opportunity for operational lift",
+                metadata={"reframed": True},
+            ),
+        ],
+    )
+
+    summary = ensure_valid_graph(mutated)
+    updated = next(node for node in mutated.nodes if node.id == root.id)
+
+    assert summary.is_valid is True
+    assert updated.type == NodeType.OPPORTUNITY
+    assert updated.title.startswith("Opportunity")
+    assert updated.metadata["reframed"] is True
+
+
+def test_move_node_only_updates_position():
+    graph = _base_graph()
+    root = graph.nodes[0]
+    child_id = uuid4()
+
     mutated, _, _ = apply_mutation_commands(
         graph,
         [
             AddNodeCommand(
                 type="add_node",
-                node=NodeDraft(id=sub_problem_id, rank=2, title="Sub-problem", content=None, metadata={}),
+                node=NodeDraft(
+                    id=child_id,
+                    type=NodeType.EVIDENCE,
+                    title="Stockout data",
+                    description="Monthly stockout logs",
+                ),
             ),
-            AddNodeCommand(
-                type="add_node",
-                node=NodeDraft(id=hypothesis_id, rank=3, title="Hypothesis", content=None, metadata={}),
+            AddEdgeCommand(
+                type="add_edge",
+                edge=EdgeDraft(type=EdgeType.SUPPORTS, source=child_id, target=root.id),
             ),
-            AddEdgeCommand(type="add_edge", edge=EdgeDraft(source=root.id, target=sub_problem_id, metadata={})),
-            AddEdgeCommand(type="add_edge", edge=EdgeDraft(source=sub_problem_id, target=hypothesis_id, metadata={})),
-            MoveNodeCommand(type="move_node", node_id=hypothesis_id, position=Position(x=400, y=20)),
+            MoveNodeCommand(
+                type="move_node",
+                node_id=child_id,
+                position=Position(x=400, y=20),
+            ),
         ],
     )
 
     summary = ensure_valid_graph(mutated)
+    moved = next(node for node in mutated.nodes if node.id == child_id)
 
     assert summary.is_valid is True
-    moved = next(node for node in mutated.nodes if node.id == hypothesis_id)
     assert moved.position.x == 400
+    assert moved.position.y == 20

@@ -1,4 +1,4 @@
-from enum import IntEnum, StrEnum
+from enum import StrEnum
 
 
 class ProjectStatus(StrEnum):
@@ -24,30 +24,39 @@ class AIRequestStatus(StrEnum):
     FAILED = "failed"
 
 
-class NodeRank(IntEnum):
-    PROBLEM_STATEMENT = 1
-    SUB_PROBLEM = 2
-    HYPOTHESIS = 3
-    FRAMEWORK_ANALYSIS = 4
-    SUPPORTING_DATA = 5
-    SYNTHESIS = 6
+class NodeType(StrEnum):
+    PROBLEM = "problem"
+    SOLUTION = "solution"
+    ASSUMPTION = "assumption"
+    METRIC = "metric"
+    STAKEHOLDER = "stakeholder"
+    RISK = "risk"
+    OPPORTUNITY = "opportunity"
+    CONSTRAINT = "constraint"
+    EVIDENCE = "evidence"
+    MARKET_DATA = "market_data"
+    TREND = "trend"
+    COMPETITOR = "competitor"
+    REGULATION = "regulation"
+    OBJECTIVE = "objective"
+    RESOURCE = "resource"
 
-    @property
-    def kind(self) -> str:
-        return {
-            NodeRank.PROBLEM_STATEMENT: "problem_statement",
-            NodeRank.SUB_PROBLEM: "sub_problem",
-            NodeRank.HYPOTHESIS: "hypothesis",
-            NodeRank.FRAMEWORK_ANALYSIS: "framework_analysis",
-            NodeRank.SUPPORTING_DATA: "supporting_evidence",
-            NodeRank.SYNTHESIS: "synthesis",
-        }[self]
+
+class EdgeType(StrEnum):
+    CAUSES = "causes"
+    SUPPORTS = "supports"
+    CONTRADICTS = "contradicts"
+    REQUIRES = "requires"
+    AFFECTS = "affects"
+    RELATED_TO = "related_to"
+    MEASURED_BY = "measured_by"
+    MITIGATED_BY = "mitigated_by"
 
 
 class NodeSource(StrEnum):
-    MANUAL = "manual"
-    INGEST = "ingest"
-    AI = "ai"
+    DOCUMENT = "document"
+    WEB = "web"
+    USER = "user"
 
 
 class MutationCommandType(StrEnum):
@@ -70,3 +79,5 @@ class AIRequestOperation(StrEnum):
     INGEST = "ingest"
     WORKSPACE_MUTATION = "workspace_mutation"
     EXPORT_ASSIST = "export_assist"
+
+

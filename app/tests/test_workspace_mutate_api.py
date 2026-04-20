@@ -1,7 +1,7 @@
 from uuid import uuid4
 
 
-def test_workspace_mutate_can_add_node_and_edge_for_branching(client, user_headers):
+def test_workspace_mutate_can_add_nodes_and_edges_for_branching(client, user_headers):
     project = client.post(
         "/api/v1/projects",
         json={"name": "Workspace Mutate", "description": "Manual mutation flow"},
@@ -22,15 +22,18 @@ def test_workspace_mutate_can_add_node_and_edge_for_branching(client, user_heade
             "project_id": project["id"],
             "expected_version": version,
             "actor": "user",
-            "reason": "Add root node",
+            "reason": "Add root problem",
             "commands": [
                 {
                     "type": "add_node",
                     "node": {
-                        "rank": 1,
-                        "title": "Problem",
-                        "content": "Primary problem statement",
-                        "source": "manual",
+                        "type": "problem",
+                        "title": "Declining service level",
+                        "description": "Primary problem statement",
+                        "source": "user",
+                        "is_enrichment": False,
+                        "source_url": None,
+                        "confidence": 1.0,
                         "position": {"x": 0, "y": 0},
                         "metadata": {},
                     },
@@ -54,16 +57,19 @@ def test_workspace_mutate_can_add_node_and_edge_for_branching(client, user_heade
             "project_id": project["id"],
             "expected_version": version,
             "actor": "user",
-            "reason": "Add branching children and connect them",
+            "reason": "Add solution and risk, connect them",
             "commands": [
                 {
                     "type": "add_node",
                     "node": {
                         "id": first_child_id,
-                        "rank": 2,
-                        "title": "Child A",
-                        "content": "First branch",
-                        "source": "manual",
+                        "type": "solution",
+                        "title": "Solution A",
+                        "description": "First branch",
+                        "source": "user",
+                        "is_enrichment": False,
+                        "source_url": None,
+                        "confidence": 1.0,
                         "position": {"x": 340, "y": 0},
                         "metadata": {"branch_index": 0},
                     },
@@ -72,10 +78,13 @@ def test_workspace_mutate_can_add_node_and_edge_for_branching(client, user_heade
                     "type": "add_node",
                     "node": {
                         "id": second_child_id,
-                        "rank": 2,
-                        "title": "Child B",
-                        "content": "Second branch",
-                        "source": "manual",
+                        "type": "risk",
+                        "title": "Risk B",
+                        "description": "Second branch",
+                        "source": "user",
+                        "is_enrichment": False,
+                        "source_url": None,
+                        "confidence": 1.0,
                         "position": {"x": 340, "y": 240},
                         "metadata": {"branch_index": 1},
                     },
@@ -83,15 +92,17 @@ def test_workspace_mutate_can_add_node_and_edge_for_branching(client, user_heade
                 {
                     "type": "add_edge",
                     "edge": {
-                        "source": root_id,
-                        "target": first_child_id,
+                        "type": "affects",
+                        "source": first_child_id,
+                        "target": root_id,
                     },
                 },
                 {
                     "type": "add_edge",
                     "edge": {
-                        "source": root_id,
-                        "target": second_child_id,
+                        "type": "affects",
+                        "source": second_child_id,
+                        "target": root_id,
                     },
                 },
             ],
@@ -103,4 +114,4 @@ def test_workspace_mutate_can_add_node_and_edge_for_branching(client, user_heade
     payload = add_children_response.json()["data"]
     assert payload["graph"]["metadata"]["validation"]["is_valid"] is True
     assert len(payload["graph"]["edges"]) == 2
-    assert len([edge for edge in payload["graph"]["edges"] if edge["source"] == root_id]) == 2
+    assert len([edge for edge in payload["graph"]["edges"] if edge["target"] == root_id]) == 2

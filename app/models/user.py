@@ -20,5 +20,7 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     projects = relationship("Project", back_populates="user", cascade="all, delete-orphan")
     ingest_jobs = relationship("IngestJob", back_populates="requested_by_user")
     export_snapshots = relationship("ExportSnapshot", back_populates="requested_by_user")
+    export_jobs = relationship("ExportJob", back_populates="requested_by_user")
     ai_request_logs = relationship("AIRequestLog", back_populates="user")
     workspace_chat_messages = relationship("WorkspaceChatMessage", back_populates="user")
+    usage_events = relationship("UsageEvent", back_populates="user", cascade="all, delete-orphan")

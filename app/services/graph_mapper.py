@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.domain.enums import NodeSource
+from app.domain.enums import EdgeType, NodeSource, NodeType
 from app.domain.graph import validate_graph
 from app.models.workspace_chat_message import WorkspaceChatMessage
 from app.models.workspace import Workspace
@@ -21,10 +21,13 @@ def workspace_to_graph(workspace: Workspace) -> WorkspaceGraph:
         [
             GraphNode(
                 id=node.id,
-                rank=node.rank,
+                type=NodeType(node.type),
                 title=node.title,
-                content=node.content,
+                description=node.description,
                 source=NodeSource(node.source),
+                is_enrichment=node.is_enrichment,
+                source_url=node.source_url,
+                confidence=node.confidence,
                 position=Position(x=node.position_x, y=node.position_y),
                 metadata=node.metadata_json or {},
                 created_at=node.created_at,
@@ -32,12 +35,13 @@ def workspace_to_graph(workspace: Workspace) -> WorkspaceGraph:
             )
             for node in workspace.nodes
         ],
-        key=lambda node: (int(node.rank), node.title.lower(), str(node.id)),
+        key=lambda node: (node.type.value, node.title.lower(), str(node.id)),
     )
     edges = sorted(
         [
             GraphEdge(
                 id=edge.id,
+                type=EdgeType(edge.type),
                 source=edge.source_node_id,
                 target=edge.target_node_id,
                 label=edge.label,

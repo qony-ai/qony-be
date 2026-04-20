@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.error_handlers import register_exception_handlers
 from app.api.middleware import register_middleware
-from app.api.routes import export, health, ingest, projects, workspace
+from app.api.routes import admin, export, health, ingest, projects, workspace
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
 from app.db.session import create_engine_from_settings, create_session_factory
@@ -52,6 +52,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(ingest.router, prefix=active_settings.api_prefix)
     app.include_router(workspace.router, prefix=active_settings.api_prefix)
     app.include_router(export.router, prefix=active_settings.api_prefix)
+    app.include_router(admin.router, prefix=active_settings.api_prefix)
 
     return app
 

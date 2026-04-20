@@ -4,9 +4,9 @@ from datetime import datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app.domain.enums import MutationCommandType, NodeRank, NodeSource
+from app.domain.enums import EdgeType, NodeSource, NodeType
 
 
 class Position(BaseModel):
@@ -30,23 +30,33 @@ class GraphValidationSummary(BaseModel):
 
 class GraphNode(BaseModel):
     id: UUID
-    rank: NodeRank
+    type: NodeType
     title: str
-    content: str | None = None
-    source: NodeSource = NodeSource.MANUAL
+    description: str
+    source: NodeSource = NodeSource.USER
+    is_enrichment: bool = False
+    source_url: str | None = None
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
     position: Position = Field(default_factory=Position)
     metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     updated_at: datetime
 
-    @computed_field
-    @property
-    def kind(self) -> str:
-        return self.rank.kind
+    @model_validator(mode="after")
+    def validate_web_enrichment(self) -> "GraphNode":
+        if self.source == NodeSource.WEB:
+            if not self.is_enrichment:
+                raise ValueError("Nodes with source='web' must have is_enrichment=true.")
+            if not self.source_url:
+                raise ValueError("Nodes with source='web' must have a source_url.")
+        elif self.is_enrichment:
+            raise ValueError("is_enrichment=true is only valid when source='web'.")
+        return self
 
 
 class GraphEdge(BaseModel):
     id: UUID
+    type: EdgeType
     source: UUID
     target: UUID
     label: str | None = None
@@ -95,10 +105,13 @@ class WorkspacePayload(BaseModel):
 
 class NodeDraft(BaseModel):
     id: UUID | None = None
-    rank: NodeRank
+    type: NodeType
     title: str = Field(min_length=1, max_length=255)
-    content: str | None = Field(default=None, max_length=12000)
-    source: NodeSource = NodeSource.MANUAL
+    description: str = Field(min_length=1, max_length=12000)
+    source: NodeSource = NodeSource.USER
+    is_enrichment: bool = False
+    source_url: str | None = None
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
     position: Position = Field(default_factory=Position)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -110,9 +123,21 @@ class NodeDraft(BaseModel):
             raise ValueError("Node title must not be blank.")
         return normalized
 
+    @model_validator(mode="after")
+    def validate_web_enrichment(self) -> "NodeDraft":
+        if self.source == NodeSource.WEB:
+            if not self.is_enrichment:
+                raise ValueError("Nodes with source='web' must have is_enrichment=true.")
+            if not self.source_url:
+                raise ValueError("Nodes with source='web' must have a source_url.")
+        elif self.is_enrichment:
+            raise ValueError("is_enrichment=true is only valid when source='web'.")
+        return self
+
 
 class EdgeDraft(BaseModel):
     id: UUID | None = None
+    type: EdgeType
     source: UUID
     target: UUID
     label: str | None = Field(default=None, max_length=255)
@@ -127,10 +152,13 @@ class AddNodeCommand(BaseModel):
 class UpdateNodeCommand(BaseModel):
     type: Literal["update_node"]
     node_id: UUID
-    rank: NodeRank | None = None
+    node_type: NodeType | None = None
     title: str | None = Field(default=None, min_length=1, max_length=255)
-    content: str | None = Field(default=None, max_length=12000)
+    description: str | None = Field(default=None, min_length=1, max_length=12000)
     source: NodeSource | None = None
+    is_enrichment: bool | None = None
+    source_url: str | None = None
+    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
     position: Position | None = None
     metadata: dict[str, Any] | None = None
     merge_metadata: bool = True
@@ -174,18 +202,22 @@ class DeleteEdgeCommand(BaseModel):
 class MoveNodeCommand(BaseModel):
     type: Literal["move_node"]
     node_id: UUID
-    position: Position | None = None
-    rank: NodeRank | None = None
+    position: Position
 
     @model_validator(mode="after")
-    def require_position_or_rank(self) -> "MoveNodeCommand":
-        if self.position is None and self.rank is None:
-            raise ValueError("Provide at least one of position or rank.")
+    def require_position(self) -> "MoveNodeCommand":
+        if self.position is None:
+            raise ValueError("MoveNodeCommand requires a position.")
         return self
 
 
 PatchCommand = Annotated[
-    AddNodeCommand | UpdateNodeCommand | DeleteNodeCommand | AddEdgeCommand | DeleteEdgeCommand | MoveNodeCommand,
+    AddNodeCommand
+    | UpdateNodeCommand
+    | DeleteNodeCommand
+    | AddEdgeCommand
+    | DeleteEdgeCommand
+    | MoveNodeCommand,
     Field(discriminator="type"),
 ]
 

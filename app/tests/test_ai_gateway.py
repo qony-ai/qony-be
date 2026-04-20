@@ -3,15 +3,15 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
-from app.domain.enums import NodeRank
-from app.integrations.ai.factory import build_ai_adapter
+from app.domain.enums import NodeType
+from app.services.ai_router import get_ai_router
 from app.services.ai_service import AIService
 
 
-def test_ai_provider_factory_selects_stub():
+def test_ai_router_selects_stub():
     settings = Settings(database_url="sqlite:///./factory-test.db", ai_provider="stub")
-    provider = build_ai_adapter(settings)
-    assert provider.provider == "stub"
+    router = get_ai_router(settings)
+    assert router.provider == "stub"
 
 
 def test_ai_service_falls_back_to_stub_when_remote_is_unavailable(app, test_settings):
@@ -40,7 +40,7 @@ def test_ai_service_falls_back_to_stub_when_remote_is_unavailable(app, test_sett
     assert suggestion.graph.metadata.attributes["provider_attempted"] == "remote"
 
 
-def test_stub_ingest_graph_splits_problem_bullets_into_multiple_branches(app, test_settings):
+def test_stub_ingest_produces_flat_typed_graph(app, test_settings):
     raw_text = """
     BUSINESS CASE
     Implementasi Sistem Inventory & Procurement Digital
@@ -49,11 +49,10 @@ def test_stub_ingest_graph_splits_problem_bullets_into_multiple_branches(app, te
     1. Latar belakang & masalah
     Saat ini proses monitoring stok dan approval pembelian masih mengandalkan spreadsheet terpisah.
     - Stockout pada item fast-moving menyebabkan lost sales dan mengganggu service level.
-    - Tim operasional menghabiskan banyak waktu untuk rekonsiliasi data stok dan follow-up approval.
     - Pembelian darurat meningkatkan biaya dan membuat vendor planning tidak stabil.
 
-    2. Manfaat
-    Sistem baru diharapkan mempercepat approval dan meningkatkan visibilitas stok.
+    2. Rekomendasi
+    Rollout sistem inventory digital dalam 2 fase untuk menurunkan stockout rate sebesar 40%.
     """
 
     with Session(app.state.engine) as session:
@@ -70,12 +69,15 @@ def test_stub_ingest_graph_splits_problem_bullets_into_multiple_branches(app, te
             workspace_version=1,
         )
 
-    root = next(node for node in suggestion.graph.nodes if node.rank == NodeRank.PROBLEM_STATEMENT)
-    sub_problems = [node for node in suggestion.graph.nodes if node.rank == NodeRank.SUB_PROBLEM]
-    root_edges = [edge for edge in suggestion.graph.edges if edge.source == root.id]
+    graph = suggestion.graph
+    node_types = {node.type for node in graph.nodes}
 
     assert suggestion.provider_result.provider == "stub"
-    assert len(sub_problems) >= 3
-    assert len(root_edges) >= 3
-    assert suggestion.graph.metadata.validation.complete_branch_count >= 3
-    assert any("stockout" in (node.content or "").lower() for node in sub_problems)
+    assert graph.metadata.validation.is_valid is True
+    assert any(node.type == NodeType.PROBLEM for node in graph.nodes), (
+        "Deterministic stub must produce at least one PROBLEM node from a business case document."
+    )
+    assert graph.edges, "Deterministic stub must connect the root problem to its supporting nodes."
+    assert NodeType.SOLUTION in node_types or NodeType.EVIDENCE in node_types, (
+        "Business case with a recommendation should produce a SOLUTION or EVIDENCE node."
+    )

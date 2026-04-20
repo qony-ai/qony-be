@@ -4,11 +4,15 @@ from fastapi import Depends, Request
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
+from app.core.exceptions import AppError
 from app.core.security import Actor, resolve_actor
 from app.services.ai_service import AIService
+from app.services.export_engine import ExportEngine
 from app.services.export_service import ExportPreviewService
+from app.services.feature_flags_service import FeatureFlagsService, feature_flags_service
 from app.services.ingest_service import IngestService
 from app.services.project_service import ProjectService
+from app.services.usage_service import UsageService
 from app.services.workspace_service import WorkspaceService
 
 
@@ -69,3 +73,33 @@ def get_export_service(
     actor: Actor = Depends(get_actor),
 ) -> ExportPreviewService:
     return ExportPreviewService(session=session, settings=settings, actor=actor)
+
+
+def get_export_engine(
+    session: Session = Depends(get_db_session),
+    settings: Settings = Depends(get_settings),
+    actor: Actor = Depends(get_actor),
+) -> ExportEngine:
+    return ExportEngine(session=session, settings=settings, actor=actor)
+
+
+def get_usage_service(
+    session: Session = Depends(get_db_session),
+    settings: Settings = Depends(get_settings),
+    actor: Actor = Depends(get_actor),
+) -> UsageService:
+    return UsageService(session=session, settings=settings, actor=actor)
+
+
+def get_feature_flags_service() -> FeatureFlagsService:
+    return feature_flags_service
+
+
+def require_admin(actor: Actor = Depends(get_actor)) -> Actor:
+    if "admin" not in actor.entitlements:
+        raise AppError(
+            code="forbidden",
+            message="Admin entitlement required for this endpoint.",
+            status_code=403,
+        )
+    return actor
