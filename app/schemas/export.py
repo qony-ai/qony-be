@@ -1,17 +1,4 @@
-"""Export schemas.
-
-Two surfaces live side by side during the export-engine rebuild:
-
-* :class:`ExportPreviewPayload` — the legacy ``/export/preview`` route
-  stub introduced in Chunk B. It will be retired once the engine is
-  end-to-end. Kept for backward compatibility with
-  ``services/export_service.py``.
-
-* :class:`ExportJobRead` + :class:`SlidePlan` — the new contract. A
-  slide plan is what the AI router returns: an ordered list of
-  component references and their template variables. The export engine
-  renders each step via the HTML component library.
-"""
+"""Export schemas for preview, jobs, and component-driven slide plans."""
 
 from __future__ import annotations
 
@@ -28,6 +15,7 @@ if TYPE_CHECKING:
 
 DeliverableType = Literal["pitch_deck", "business_document"]
 ExportJobStatus = Literal["pending", "planning", "rendering", "completed", "failed"]
+ExportPreviewStatus = Literal["ready", "stub"]
 
 
 # ---------------------------------------------------------------- legacy preview
@@ -37,22 +25,35 @@ class ExportPreviewPayload(BaseModel):
     snapshot_id: UUID
     project_id: UUID
     workspace_id: UUID
+    project_name: str
     generated_at: datetime
     graph_version: int | None = None
     deliverable_type: DeliverableType | None = None
-    status: Literal["stub"] = "stub"
+    manifest_version: str | None = None
+    slide_plan: "SlidePlan | None" = None
+    status: ExportPreviewStatus = "ready"
     warnings: list[str] = Field(default_factory=list)
 
 
 def export_snapshot_to_read(snapshot: "ExportSnapshot") -> ExportPreviewPayload:
     output = snapshot.output_json or {}
+    plan_payload = output.get("slide_plan")
+    slide_plan: SlidePlan | None
+    if isinstance(plan_payload, dict) and plan_payload.get("steps"):
+        slide_plan = SlidePlan.model_validate(plan_payload)
+    else:
+        slide_plan = None
     return ExportPreviewPayload(
         snapshot_id=snapshot.id,
         project_id=snapshot.project_id,
         workspace_id=snapshot.workspace_id,
+        project_name=output.get("project_name", "Untitled project"),
         generated_at=snapshot.created_at,
         graph_version=output.get("graph_version"),
         deliverable_type=output.get("deliverable_type"),
+        manifest_version=output.get("manifest_version"),
+        slide_plan=slide_plan,
+        status=output.get("status", "ready"),
         warnings=list(output.get("warnings", [])),
     )
 
@@ -79,6 +80,11 @@ class SlidePlan(BaseModel):
     manifest_version: str
     steps: list[SlideStep]
     warnings: list[str] = Field(default_factory=list)
+
+
+class ExportJobCreateRequest(BaseModel):
+    project_id: UUID
+    deliverable_type: DeliverableType
 
 
 class ExportJobRead(BaseModel):

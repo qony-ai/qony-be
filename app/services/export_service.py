@@ -1,11 +1,3 @@
-"""Export service placeholder.
-
-The old Minto-chain export preview is retired. Chunk C will replace this
-service with the real export engine (component selection + HTML render +
-Playwright PDF + ExportJob records). This stub exists so the ``/export/preview``
-route keeps returning a structured 501-style envelope rather than crashing.
-"""
-
 from __future__ import annotations
 
 from uuid import UUID
@@ -19,7 +11,12 @@ from app.repositories.export_snapshots import ExportSnapshotRepository
 from app.repositories.projects import ProjectRepository
 from app.repositories.users import UserRepository
 from app.repositories.workspaces import WorkspaceRepository
-from app.schemas.export import ExportPreviewPayload, export_snapshot_to_read
+from app.schemas.export import (
+    DeliverableType,
+    ExportPreviewPayload,
+    export_snapshot_to_read,
+)
+from app.services.export_engine import ExportEngine
 from app.services.graph_mapper import workspace_to_graph
 
 
@@ -33,7 +30,12 @@ class ExportPreviewService:
         self.workspace_repository = WorkspaceRepository(session)
         self.export_snapshot_repository = ExportSnapshotRepository(session)
 
-    def build_preview(self, project_id: UUID) -> ExportPreviewPayload:
+    def build_preview(
+        self,
+        project_id: UUID,
+        *,
+        deliverable_type: DeliverableType = "pitch_deck",
+    ) -> ExportPreviewPayload:
         user = self.user_repository.get_or_create(
             email=self.actor.email,
             name=self.actor.name,
@@ -45,20 +47,33 @@ class ExportPreviewService:
         workspace = self.workspace_repository.get_by_project_id(project.id)
         if workspace is None:
             raise NotFoundError("Workspace not found.")
+
         graph = workspace_to_graph(workspace)
+        engine = ExportEngine(
+            session=self.session,
+            settings=self.settings,
+            actor=self.actor,
+        )
+        plan = engine.plan_slides(
+            project=project,
+            graph=graph,
+            deliverable_type=deliverable_type,
+        )
 
         output = {
+            "project_name": project.name,
             "graph_version": graph.metadata.version,
-            "deliverable_type": None,
-            "warnings": [
-                "Export engine is being rebuilt. Preview will return real output once Chunk C is merged.",
-            ],
+            "deliverable_type": deliverable_type,
+            "manifest_version": plan.manifest_version,
+            "slide_plan": plan.model_dump(mode="json"),
+            "status": "ready",
+            "warnings": list(plan.warnings),
         }
         snapshot = self.export_snapshot_repository.create_snapshot(
             project_id=project.id,
             workspace_id=workspace.id,
             requested_by_user_id=user.id,
-            branch_count=0,
+            branch_count=len(plan.steps),
             output_json=output,
         )
         self.session.commit()
